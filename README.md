@@ -328,6 +328,8 @@ Eine persistente **Teile-Struktur** pro Modell: semantische ID, Latent, Transfor
 
 ## Trainingsdaten
 
+> **Plan für eigene Trainingsdaten:** Wir generieren die Skizzen synthetisch aus lizenzsauberen 3D-Modellen (Objaverse u. a.), in mehreren Perspektiven und Qualitätsstufen. Details und alle Quellenlinks: [docs/DATENPLAN.md](docs/DATENPLAN.md).
+
 Ziel: Daten mit **handgezeichneter Skizze + echtem Foto + 3D-Modell + Beschreibung** für möglichst alle Objektarten (Autos, Alltagsgegenstände, Filmprops, Möbel, Räume, technische Teile).
 
 > **Wichtigster Befund:** Die Recherche hat **kein** verifiziertes Dataset gefunden, das für dieselbe Instanz Handskizze, echtes Foto, 3D-Modell und Text zusammen enthält. Es gibt nur Teilkombinationen (siehe unten). Der realistische Weg ist, **synthetische Skizzen und Texte aus lizenzierten 3D-Modellen zu erzeugen** und mit kleinen echten Handskizzen-Sets zu validieren und zu kalibrieren.
