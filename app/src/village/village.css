@@ -1,0 +1,25 @@
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; overscroll-behavior: none; }
+body { position: fixed; inset: 0; }
+#scene { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+body.grabbing #scene { cursor: grabbing; }
+
+/* Touch-Joystick (nur auf Touch-Geräten, erscheint nach dem Intro) */
+.joy {
+  position: fixed; z-index: 5;
+  left: max(22px, env(safe-area-inset-left)); bottom: max(26px, env(safe-area-inset-bottom));
+  width: clamp(104px, 26vmin, 148px); aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 246, 226, 0.10) 0 55%, rgba(255, 246, 226, 0.20) 56% 100%);
+  border: 1.5px solid rgba(255, 246, 226, 0.45);
+  box-shadow: 0 6px 24px rgba(30, 15, 5, 0.25), inset 0 0 18px rgba(255, 246, 226, 0.12);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+  opacity: 0; transform: scale(0.85); transition: opacity 0.6s ease, transform 0.6s cubic-bezier(.2,.9,.3,1.2);
+}
+.joy.on { opacity: 0.8; transform: none; }
+.joy.active { opacity: 1; }
+.joy-knob {
+  position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%;
+  border-radius: 50%; background: rgba(255, 248, 232, 0.92);
+  box-shadow: 0 3px 10px rgba(40, 20, 5, 0.35); pointer-events: none;
+}
+.joy:not(.active) .joy-knob { transition: transform 0.25s cubic-bezier(.2,.9,.3,1.3); }

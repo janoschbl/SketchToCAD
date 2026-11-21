@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>SketchLab</title>
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #fff; color: #111; font: 15px/1.4 system-ui, -apple-system, sans-serif; -webkit-user-select: none; user-select: none; }
+      main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+      h1 { font-size: 18px; margin: 0 0 12px; font-weight: 650; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+      .card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 12px; }
+      .card h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: #666; text-transform: uppercase; letter-spacing: .04em; }
+      .sq { position: relative; width: 100%; aspect-ratio: 1; border-radius: 8px; background: #fff; border: 1px solid #eee; overflow: hidden; }
+      .sq canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      #draw { touch-action: none; cursor: crosshair; }
+      .guide { position: absolute; left: 21.4%; top: 21.4%; width: 57.2%; height: 57.2%; border: 1px dashed #ccc; pointer-events: none; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+      button { font: inherit; padding: 8px 12px; min-height: 40px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #111; }
+      button:active { background: #f2f2f2; }
+      button.on { background: #111; color: #fff; border-color: #111; }
+      .lab { color: #888; font-size: 12px; margin-right: 2px; }
+      .stat { margin-top: 8px; color: #666; font-size: 13px; min-height: 36px; }
+      .err { color: #b00020; }
+      .wide { grid-column: 1 / -1; }
+      .segwrap { display: grid; grid-template-columns: minmax(300px, 1.4fr) minmax(260px, 1fr); gap: 16px; }
+      @media (max-width: 760px) { .segwrap { grid-template-columns: 1fr; } }
+      select { font: inherit; min-height: 40px; border: 1px solid #ddd; border-radius: 8px; padding: 0 8px; background: #fff; max-width: 100%; }
+      #seglist { max-height: 430px; overflow: auto; border: 1px solid #eee; border-radius: 8px; margin-top: 10px; }
+      #seglist .ph { position: sticky; top: 0; background: #fafafa; font-size: 12px; font-weight: 600; color: #666; padding: 5px 10px; border-bottom: 1px solid #eee; }
+      #seglist .it { display: flex; align-items: center; gap: 8px; padding: 4px 10px; cursor: pointer; font-size: 14px; }
+      #seglist .it:hover { background: #f6f6f6; }
+      #seglist .it.on { background: #fff1e0; box-shadow: inset 3px 0 #ff7a00; }
+      #seglist .it.off span { color: #bbb; text-decoration: line-through; }
+      #seglist .it span { flex: 1; }
+      #seglist .it small { color: #aaa; font-variant-numeric: tabular-nums; }
+      input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid #ddd; border-radius: 4px; background: none; }
+      #selcol { width: 40px; height: 40px; }
+      #seggroups button { min-height: 34px; padding: 5px 10px; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>SketchLab <span style="color:#999;font-weight:400">· eigenes Modell vs. MeshPad</span></h1>
+      <div class="grid">
+        <section class="card">
+          <h2>Skizze</h2>
+          <div class="sq"><canvas id="draw" width="512" height="512"></canvas><div class="guide"></div></div>
+          <div class="row"><span class="lab">Azimut</span><span id="az"></span></div>
+          <div class="row"><span class="lab">Elevation</span><span id="el"></span></div>
+          <div class="row">
+            <button id="undo">Rückgängig</button><button id="clear">Löschen</button><button id="sample">Testskizze</button><button id="mp">MeshPad vergleichen</button>
+          </div>
+          <div class="stat" id="sketchstat">Zeichne in der gestrichelten Fläche. Das Modell kennt nur Umrisse von Objekten, die du dir aus der gewählten Ansicht vorstellst.</div>
+        </section>
+        <section class="card">
+          <h2>Eigenes Modell (live)</h2>
+          <div class="sq"><canvas id="v1"></canvas></div>
+          <div class="row"><button id="reset1">Ansicht der Skizze</button><button id="gt">Original zeigen</button></div>
+          <div class="stat" id="stat1"></div>
+        </section>
+        <section class="card">
+          <h2>MeshPad</h2>
+          <div class="sq"><canvas id="v2"></canvas></div>
+          <div class="stat" id="stat2">Auf Knopfdruck, dauert einige Sekunden.</div>
+        </section>
+        <section class="card wide">
+          <h2>Oberflächen der Zieldaten (procad, Trainingsziel)</h2>
+          <div class="segwrap">
+            <div>
+              <div class="sq"><canvas id="v3"></canvas></div>
+              <div class="stat" id="segstat">lade…</div>
+            </div>
+            <div>
+              <div class="row" style="margin-top:0"><button id="segprev">‹</button><select id="segobj"></select><button id="segnext">›</button></div>
+              <div class="row"><span class="lab">Gitter</span><span id="seggrid"></span></div>
+              <div class="row"><span class="lab">Farbe</span><span id="segpaint"></span></div>
+              <div class="row"><span class="lab">Auswahl</span><span id="seggroups" style="display:contents"></span></div>
+              <div class="row"><input type="color" id="selcol" title="Farbe der Auswahl" /><button id="segmulti">Mehrfach</button><button id="selnone">Keine</button><button id="selonly">Nur Auswahl</button><button id="selhide">Ausblenden</button><button id="showall">Alle zeigen</button></div>
+              <div class="row"><button id="resetcol">Farben zurücksetzen</button><button id="segexp">Als GLB exportieren</button></div>
+              <div class="stat" id="selinfo" style="min-height:20px"></div>
+              <div id="seglist"></div>
+            </div>
+          </div>
+          <div class="stat">Klick = Fläche wählen, Shift/„Mehrfach“ = mehrere. Flächen = Teil (manifold3d-Herkunft) × Knickwinkel &lt; 20°; Zylindermantel bleibt eine Fläche. „64³“ zeigt dieselben Labels auf dem Voxelgitter, das das Modell vorhersagt.</div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="/src/lab/lab.ts"></script>
+    <script type="module" src="/src/lab/surfaces.ts"></script>
+  </body>
+</html>

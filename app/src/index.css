@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+/* Reiner Light-Mode (shadcn "neutral" Tokens) */
+:root {
+  color-scheme: light;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.93 0.04 280);
+  --accent-foreground: oklch(0.3 0.12 280);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.6 0.15 280);
+  --radius: 0.75rem;
+
+  /* Beautiful UI Tokens (https://www.beautifului.dev/) – Light-Theme */
+  --ink: oklch(24.7% .006 258.361);
+  --ink-2: oklch(50.6% .01 264.477);
+  --ink-3: oklch(54.1% .01 264.484);
+  --surface: oklch(100% 0 0);
+  --canvas: oklch(96.1% .002 247.84);
+  --page: oklch(98.5% .001 286.376);
+  --line: oklch(94.6% .003 264.542);
+  --line-strong: oklch(91.2% .005 258.326);
+  --hover: oklch(97% .002 247.839);
+  --hover-2: oklch(93.3% .003 247.86);
+  --field: oklch(97.9% .002 247.839);
+  --bui-accent: oklch(62.6% .205 254.947);
+  --accent-ink: oklch(55.6% .187 255.617);
+  --accent-tint: oklch(96% .019 252.878);
+  --green: oklch(60.3% .155 150.883);
+  --green-tint: oklch(95.8% .017 159.118);
+  --red: oklch(62.1% .192 23.042);
+  --shadow-sm: 0 18px 47px 0 #00000008, 0 7.5px 19px 0 #00000005, 0 4px 10.5px 0 #00000005, 0 2.3px 5.8px 0 #00000003, 0 1.2px 3.1px 0 #00000003, 0 .5px 1.3px 0 #00000003;
+  --shadow-md: 0 17.54px 23.39px 0 #0000000a, 0 9.4px 12.5px 0 #00000008, 0 5.25px 7px 0 #00000005, 0 2.79px 3.72px -2px #00000003, 0 1.16px 1.5px 0 #00000003;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-surface: var(--surface);
+  --color-canvas: var(--canvas);
+  --color-page: var(--page);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-hover: var(--hover);
+  --color-hover-2: var(--hover-2);
+  --color-field: var(--field);
+  --color-bui-accent: var(--bui-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-green: var(--green);
+  --color-green-tint: var(--green-tint);
+  --color-red: var(--red);
+  --shadow-card: 0 0 0 1px var(--line), var(--shadow-sm);
+  --shadow-raised: 0 0 0 1px var(--line), var(--shadow-md);
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --radius-chip: 6px;
+}
+
+@keyframes pop-in { 0% { opacity: 0; transform: scale(.95) } to { opacity: 1; transform: scale(1) } }
+@keyframes rise-in { 0% { opacity: 0; transform: translateY(10px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes eq-bounce { 0%, to { transform: scaleY(.35) } 50% { transform: scaleY(1) } }
+@keyframes shimmer { 0% { background-position: 100% 0 } to { background-position: -100% 0 } }
+.shimmer-text {
+  background: linear-gradient(90deg, var(--ink-3) 0%, var(--ink-3) 40%, var(--ink) 50%, var(--ink-3) 60%, var(--ink-3) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 1.6s linear infinite;
+}
+
+html, body, #app { height: 100%; margin: 0; overflow: hidden; background: #fff; color: var(--foreground); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
