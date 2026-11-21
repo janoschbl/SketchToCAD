@@ -145,7 +145,7 @@ body.hovering #scene { cursor: pointer; }
 }
 .vtitle.on { opacity: 1; }
 .vtitle-h {
-  margin: 0; font: 800 clamp(44px, 8.4vw, 128px)/0.98 var(--display); letter-spacing: -0.035em;
+  margin: 0 auto; max-width: 100%; text-wrap: balance; font: 800 clamp(40px, 7.2vw, 120px)/1.02 var(--display); letter-spacing: -0.035em;
   text-shadow: 0 4px 40px rgba(0, 0, 0, 0.45); transform: translateY(14px) scale(0.98); transition: transform 1.4s cubic-bezier(.2,.8,.2,1);
 }
 .vtitle.on .vtitle-h { transform: none; }
