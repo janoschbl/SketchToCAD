@@ -11,6 +11,7 @@ import {
 } from './world';
 import { createPost } from './post';
 import { makeSticker, stickOnPrism } from './stickers';
+import { createUI } from './ui';
 
 // ---------------------------------------------------------------- Renderer & Szene
 
@@ -213,6 +214,7 @@ const objs: SketchObj[] = defs.map((d) => {
   group.rotation.y = d.ry ?? 0;
   scene.add(group);
   const o: SketchObj = { id: d.id, label: d.label, group, center: new THREE.Vector3(d.x, 0, d.z), state: 'hidden', u: makeRevealUniforms(0), minY: 0, maxY: 1 };
+  group.userData.obj = o;
   gen.register(o);
   return o;
 });
@@ -318,11 +320,13 @@ let dragging = false;
 const last = new THREE.Vector2();
 const gesture = () => { sfx.init(); sfx.resume(); };
 
+const press = { x: 0, y: 0, moved: 0 };
 canvas.addEventListener('pointerdown', (e) => {
   gesture();
   if (!free) return;
   dragging = true;
   last.set(e.clientX, e.clientY);
+  press.x = e.clientX; press.y = e.clientY; press.moved = 0;
   canvas.setPointerCapture(e.pointerId);
   document.body.classList.add('grabbing');
 });
@@ -330,12 +334,24 @@ canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
   const dx = e.clientX - last.x, dy = e.clientY - last.y;
   last.set(e.clientX, e.clientY);
+  press.moved = Math.max(press.moved, Math.hypot(e.clientX - press.x, e.clientY - press.y));
   // Umsehen per Ziehen: Welt folgt dem Cursor
   fp.yawT += dx * 0.0042;
   fp.pitchT = THREE.MathUtils.clamp(fp.pitchT + dy * 0.0036, -1.15, 1.15);
 });
 const endDrag = () => { dragging = false; document.body.classList.remove('grabbing'); };
-canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointerup', (e) => {
+  const wasDrag = dragging;
+  endDrag();
+  // Kurzer Klick/Tipp (kein Umsehen) auf Haus oder Brunnen
+  if (!wasDrag || press.moved > 7 || !free || dash.t >= 0 || ui.isOpen()) return;
+  const o = pick(e.clientX, e.clientY);
+  if (!o) return;
+  setHover(null);
+  sfx.pop(1.1);
+  if (o.id === 'well') ui.openWell();
+  else ui.openTool(o.label ?? 'Werkstatt');
+});
 canvas.addEventListener('pointercancel', endDrag);
 
 // Touch-Joystick (Handy/iPad): links unten zum Laufen, Ziehen auf der restlichen Fläche zum Umsehen
@@ -380,6 +396,7 @@ function showJoystick() {
 const keys = new Set<string>();
 addEventListener('keydown', (e) => {
   gesture();
+  if (ui.isOpen()) return;
   keys.add(e.key.toLowerCase());
   if (e.key.toLowerCase() === 'm' && !e.repeat) sfx.toggle();
 });
@@ -604,6 +621,20 @@ function frame(fixedDt?: number) {
     look.set(fp.pos.x - Math.sin(fp.yaw) * cp * 10, camera.position.y + Math.sin(fp.pitch) * 10, fp.pos.z - Math.cos(fp.yaw) * cp * 10);
     fov = FOV_FP;
   }
+  // ---------- Sprung zum Brunnen: schneller Bogenflug (DASH_DUR) von der alten Kamera in den Dorfplatz-Blick
+  if (dash.t >= 0) {
+    dash.t += dt;
+    const k = clamp01(dash.t / DASH_DUR), e = easeInOutCubic(k);
+    const target = camera.position.clone();
+    dirB.copy(look).sub(target).normalize();
+    dirA.copy(dash.look).sub(dash.pos).normalize();
+    camera.position.lerpVectors(dash.pos, target, e);
+    camera.position.y += Math.sin(Math.PI * k) * Math.min(5, dash.pos.distanceTo(target) * 0.12);
+    look.copy(camera.position).add(dirA.lerp(dirB, e).normalize().multiplyScalar(10));
+    fov = THREE.MathUtils.lerp(dash.fov, fov, e) + 16 * Math.sin(Math.PI * k);
+    if (k >= 1) dash.t = -1;
+  }
+  if (!uiVillage && t >= T_FP) { uiVillage = true; ui.setMode('village'); }
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(look);
   camera.updateMatrixWorld();
@@ -659,16 +690,106 @@ function frame(fixedDt?: number) {
   (fireflies.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
   postU.uTime.value = t;
 
-  post.composer.render(dt);
+  if (!paused) post.composer.render(dt);
   if (fixedDt === undefined && !manual) requestAnimationFrame(() => frame());
 }
+// ---------------------------------------------------------------- Oberfläche, Sprung & Klicks
+
+const DASH_DUR = 0.5;
+const dash = { t: -1, pos: V3(0, 0, 0), look: V3(0, 0, 0), fov: 38 };
+let uiVillage = false, paused = false;
+
+/** Intro sofort beenden: alles fertig bauen, Schriftzug weg, Welt voll aufgedeckt. */
+function skipIntro() {
+  gen.skipAll();
+  for (const o of objs) {
+    if (/^L\d+$/.test(o.id)) { o.state = 'gone'; o.group.visible = false; continue; }
+    if (o.state !== 'done') gen.finish(o);
+  }
+  mask.data.fill(255);
+  mask.tex.needsUpdate = true;
+  twinkled = burst = wummed = flew1 = dissolved = flew2 = true;
+  brush.visible = 0;
+  brush.group.visible = false;
+  gen.maxStartsPerFrame = 3;
+  time = Math.max(time, T_FP);
+}
+function jumpToWell() {
+  if (dash.t >= 0 || ui.isOpen()) return;
+  gesture();
+  dash.pos.copy(camera.position); dash.look.copy(look); dash.fov = camera.fov; dash.t = 0;
+  if (time < T_FP) skipIntro();
+  free = false;              // Ich-Perspektive startet neu am Brunnen (Position + Blick zurückgesetzt)
+  keys.clear();
+  setHover(null);
+  flash = Math.max(flash, 0.12);
+  sfx.whoosh(DASH_DUR + 0.2, 0.6);
+  uiVillage = true;
+  ui.setMode('village');
+}
+
+const ui = createUI({
+  onJump: jumpToWell,
+  onReplayIntro: () => location.reload(),
+  onOpenChange: (open) => {
+    keys.clear(); setHover(null);
+    // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
+    paused = open && !!document.querySelector('.vshop.on');
+  },
+});
+ui.setMode('intro');
+
+// Häuser und Brunnen anklickbar
+const ray = new THREE.Raycaster();
+ray.far = 45;
+const ndc = new THREE.Vector2();
+const clickable = (o: SketchObj) => o.id === 'well' || o.id.startsWith('house');
+function pick(x: number, y: number): SketchObj | null {
+  ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  // gegen alle fertigen Objekte testen, damit Bäume davor den Klick abfangen
+  const hits = ray.intersectObjects(objs.filter((o) => o.state === 'done' && o.group.visible).map((o) => o.group), true);
+  for (const h of hits) {
+    let n: THREE.Object3D | null = h.object;
+    while (n && !n.userData.obj) n = n.parent;
+    const o = n?.userData.obj as SketchObj | undefined;
+    if (o) return clickable(o) ? o : null;
+  }
+  return null;
+}
+let hovered: SketchObj | null = null;
+const glow = new THREE.Color('#ff9a5a');
+function setHover(o: SketchObj | null, x = 0, y = 0) {
+  if (o !== hovered) {
+    const paint = (obj: SketchObj, on: boolean) => obj.group.traverse((m) => {
+      const mat = (m as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (!(m as THREE.Mesh).isMesh || !mat?.emissive) return;
+      if (on) { mat.userData.em ??= { c: mat.emissive.clone(), i: mat.emissiveIntensity }; mat.emissive.copy(glow); mat.emissiveIntensity = 0.12; }
+      else if (mat.userData.em) { mat.emissive.copy(mat.userData.em.c); mat.emissiveIntensity = mat.userData.em.i; }
+    });
+    if (hovered) paint(hovered, false);
+    if (o) paint(o, true);
+    hovered = o;
+    document.body.classList.toggle('hovering', !!o);
+  }
+  ui.showHover(o ? (o.id === 'well' ? 'Brunnen · So funktioniert’s' : `${o.label} · Werkstatt`) : null, x, y);
+}
+let hoverQueued = false;
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'touch' || dragging || !free || dash.t >= 0 || ui.isOpen() || hoverQueued) return;
+  hoverQueued = true;
+  requestAnimationFrame(() => { hoverQueued = false; setHover(pick(e.clientX, e.clientY), e.clientX, e.clientY); });
+});
+canvas.addEventListener('pointerleave', () => setHover(null));
+canvas.addEventListener('pointerdown', () => setHover(null));
+
 sfx.init();
 requestAnimationFrame(() => frame());
 
 // fürs Debuggen in der Konsole
 Object.assign(window, {
   village: {
-    objs, gen, mask, fp,
+    objs, gen, mask, fp, jumpToWell, skipIntro,
     get time() { return time; },
     marks: { T_BURST, T_WUMM, T_FLY1, T_SIGN, T_DISSOLVE, T_FLY2, T_FP },
     /** Simulation manuell vorspulen (für Screenshots in gedrosselten Tabs). */

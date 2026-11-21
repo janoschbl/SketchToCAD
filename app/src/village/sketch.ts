@@ -320,6 +320,19 @@ export class Generator {
     this.sfx.drawing(Math.min(1, sketching * 0.45));
   }
 
+  /** Alles Laufende abbrechen und Tinte entfernen (Intro überspringen). */
+  skipAll() {
+    for (const r of [...this.running, ...this.dissolving]) {
+      this.scene.remove(r.ink);
+      r.ink.geometry.dispose(); (r.ink.material as LineMaterial).dispose();
+    }
+    for (const r of this.dissolving) { r.obj.state = 'gone'; r.obj.group.visible = false; }
+    for (const r of this.running) r.obj.state = 'hidden';
+    for (const p of this.pending) p.obj.state = 'hidden';
+    this.running = []; this.dissolving = []; this.pending = [];
+    this.sfx.drawing(0);
+  }
+
   /** Sofort fertig (Debug / "alles zeigen"). */
   finish(obj: SketchObj) {
     obj.state = 'done';
