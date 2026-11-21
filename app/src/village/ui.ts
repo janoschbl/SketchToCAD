@@ -293,30 +293,33 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     <p class="pad-pencil hw">(Prototyp – unser Modell lernt noch)</p>`;
 
   const PROJECT = `
-    <p class="vcard-kicker">Über das Projekt</p>
-    <h2>SketchToCAD</h2>
-    <p>Skizzen-Tools sind schnell, aber flach. CAD ist mächtig, aber langsam. SketchToCAD verbindet beides:
-    Du zeichnest in 2D, ein selbst trainiertes Modell baut live ein 3D-Modell, und du bearbeitest es weiter wie in einem CAD-Programm.</p>
-    <p>Gedacht für Film- und Produktions-Assets – Props, Set-Objekte, Figuren – vor allem in der Vorproduktion.</p>
-    <div class="vcard-actions">
-      <button class="vbtn vbtn-ink" data-act="well">Wie es funktioniert</button>
-      <a class="vbtn" href="mailto:${CONTACT_MAIL}">Schreib uns</a>
+    <div class="pad-head hw">Notiz: Über uns</div>
+    <h2 class="pad-h hw">Was ist SketchToCAD?</h2>
+    <p class="hw">Prompten geht schnell, trifft aber selten genau das, was du im Kopf hast. Zeichnen ist genau, aber langsam bis zum fertigen 3D-Modell.</p>
+    <p class="hw">Wir verbinden beides: Du skizzierst, sagst dazu, was du willst – und bekommst ein 3D-Modell, das du Teil für Teil weiterbearbeitest.</p>
+    <p class="hw"><b>Für wen?</b> Filmproduktionen und Postproduktion, die Hinter- und Vordergründe bauen – gemeinsam mit dem Art Department.</p>
+    <div class="pad-links">
+      <button class="pad-link main" data-act="well"><span class="hw">→ So funktioniert’s</span>${CIRCLED}</button>
+      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Schreib uns</span>${UNDERLINED}</a>
     </div>`;
 
   const IMPRINT = `
-    <p class="vcard-kicker">Rechtliches</p>
-    <h2>Impressum</h2>
-    <p><b>Verantwortlich für Organisation:</b><br>Craig und Maik</p>
-    <p class="vcard-todo">Platzhalter – vor dem Livegang ersetzen: vollständiger Name, ladungsfähige Anschrift, E-Mail
-    (Angaben nach § 5 DDG) und ggf. Verantwortliche/r für Inhalte.</p>
-    <p>Kontakt: <a href="mailto:${CONTACT_MAIL}">${CONTACT_MAIL}</a></p>`;
+    <div class="pad-head hw">Notiz: Rechtliches</div>
+    <h2 class="pad-h hw">Impressum</h2>
+    <p class="hw"><b>Verantwortlich für Organisation:</b><br>Craig und Maik</p>
+    <p class="pad-todo hw">Vor dem Livegang ergänzen: voller Name, Anschrift, E-Mail (§ 5 DDG)!</p>
+    <div class="pad-links">
+      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Kontakt: ${CONTACT_MAIL}</span>${UNDERLINED}</a>
+    </div>`;
 
   const PRIVACY = `
-    <p class="vcard-kicker">Rechtliches</p>
-    <h2>Datenschutz</h2>
-    <p>Diese Seite setzt keine Cookies, nutzt kein Tracking und speichert keine Formulardaten.</p>
-    <p class="vcard-todo">Platzhalter – vor dem Livegang durch eine vollständige Datenschutzerklärung ersetzen
-    (u. a. Verantwortliche/r, Hosting und Server-Logs, Rechte der Betroffenen).</p>`;
+    <div class="pad-head hw">Notiz: Rechtliches</div>
+    <h2 class="pad-h hw">Datenschutz</h2>
+    <p class="hw">Diese Seite setzt keine Cookies, nutzt kein Tracking und speichert keine Formulardaten.</p>
+    <p class="pad-todo hw">Vor dem Livegang: vollständige Datenschutzerklärung (Verantwortliche, Hosting, Server-Logs, deine Rechte)!</p>
+    <div class="pad-links">
+      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Fragen? Schreib uns</span>${UNDERLINED}</a>
+    </div>`;
 
   function openTool(house: string) {
     if (house !== 'Werkstatt') questDone('house');
@@ -338,9 +341,9 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     else if (act === 'well') { opts.onWell?.(); questDone('well'); showCard(WELL, true); }
     else if (act === 'quest-toggle') quest.classList.toggle('min');
     else if (act === 'hero-close') { heroShownAt = 0; collapseHero(); }
-    else if (act === 'project') showCard(PROJECT);
-    else if (act === 'imprint') showCard(IMPRINT);
-    else if (act === 'privacy') showCard(PRIVACY);
+    else if (act === 'project') showCard(PROJECT, true);
+    else if (act === 'imprint') showCard(IMPRINT, true);
+    else if (act === 'privacy') showCard(PRIVACY, true);
     else if (act === 'tool') openTool(t.dataset.house ?? 'Werkstatt');
     else if (act === 'replay') { closeAll(); opts.onReplayIntro(); }
   });
