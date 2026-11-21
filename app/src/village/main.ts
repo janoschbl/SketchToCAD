@@ -11,7 +11,7 @@ import {
 } from './world';
 import { createPost } from './post';
 import { makeSticker, stickOnPrism } from './stickers';
-import { createUI } from './ui';
+import { createUI, type ClaimVariant } from './ui';
 
 // ---------------------------------------------------------------- Renderer & Szene
 
@@ -251,13 +251,14 @@ const stickers = [
 stickers.forEach((m) => scene.add(m)); // Brunnen steht im Ursprung
 let stickerT = -1;
 const letters = objs.filter((o) => /^L\d+$/.test(o.id));
-const HERO = { sketch: 3.4, solid0: 3.1, solid: 1.5, fade0: 3.5, fade: 1.0 };
-const T_IN0 = 0.5, T_DRAW = 1.7, T_SKETCHED = T_DRAW + HERO.sketch, T_WELL = T_DRAW + HERO.fade0 + HERO.fade;
+// Intro gestrafft (21.11.): ~16 s statt ~30 s, Brunnen mit deutlich weniger Strichen
+const HERO = { sketch: 1.5, solid0: 1.25, solid: 0.95, fade0: 1.6, fade: 0.6 };
+const T_IN0 = 0.25, T_DRAW = 0.95, T_SKETCHED = T_DRAW + HERO.sketch, T_WELL = T_DRAW + HERO.fade0 + HERO.fade;
 const T_TAP = T_WELL + 0.15, T_BURST = T_TAP + 0.4;
-const WAVE_DUR = 9.5, R_A = 44;                       // Welle beschleunigt bis R_A, dann Wumm
+const WAVE_DUR = 5.2, R_A = 44;                       // Welle beschleunigt bis R_A, dann Wumm
 const T_WUMM = T_BURST + WAVE_DUR;
-const T_FLY1 = T_WUMM + 1.15, FLY1_DUR = 4.6, T_SIGN = T_FLY1 + FLY1_DUR;
-const T_DISSOLVE = T_SIGN + 1.0, T_FLY2 = T_DISSOLVE + 1.3, FLY2_DUR = 4.4, T_FP = T_FLY2 + FLY2_DUR;
+const T_FLY1 = T_WUMM + 0.7, FLY1_DUR = 2.9, T_SIGN = T_FLY1 + FLY1_DUR;
+const T_DISSOLVE = T_SIGN + 0.55, T_FLY2 = T_DISSOLVE + 0.95, FLY2_DUR = 2.9, T_FP = T_FLY2 + FLY2_DUR;
 const CAM0 = { dist: 6.8, pitch: 0.36, y: 1.4 }, CAM1 = { dist: 102, pitch: 0.92, y: 0 };
 const EYE = 1.65, HOLD_DRIFT = 0.22;
 let FOV_FP = 58, FOV_SIGN = 58;
@@ -460,7 +461,7 @@ function frame(fixedDt?: number) {
 
   // ---------- Pinsel & Brunnen
   if (t >= T_IN0 && !twinkled) { twinkled = true; sfx.twinkle(); }
-  if (t >= T_DRAW && well.state === 'hidden') gen.start(well, { timing: HERO, sequential: true, width: 3.2 });
+  if (t >= T_DRAW && well.state === 'hidden') gen.start(well, { timing: HERO, sequential: true, width: 3.4, minLen: 0.3, maxEdges: 34 });
   const firstPen = V3(0, 0.2, 1.1);
   if (t < T_DRAW) {
     const k = easeInOutSine((t - T_IN0) / (T_DRAW - T_IN0));
@@ -470,7 +471,7 @@ function frame(fixedDt?: number) {
     if (gen.penTip(well, penTip)) lastPen.copy(penTip);
     brushTarget.copy(lastPen);
   } else if (t < T_TAP) {
-    const k = easeInOutSine((t - T_SKETCHED) / 0.9);
+    const k = easeInOutSine((t - T_SKETCHED) / Math.max(0.3, T_TAP - T_SKETCHED));
     brushTarget.lerpVectors(lastPen, brushHover, k);
     brushTarget.y += Math.sin(t * 3) * 0.08 * k;
   } else if (t < T_BURST) {
@@ -508,7 +509,8 @@ function frame(fixedDt?: number) {
   }
   if (burst) waveR = waveAt(tw);
   if (burst && tw <= WAVE_DUR + 6) {
-    if (tw <= WAVE_DUR + 2.5) mask.paint(0, 0, Math.min(waveR, 80), wummed ? dt * 2.5 : dt);
+    if (tw <= WAVE_DUR + 2.5) mask.paint(0, 0, Math.min(waveR, 80), (wummed ? 2.5 : 1.6) * dt);
+    if (!wummed) gen.maxStartsPerFrame = 5;
     let starts = 0;
     for (const o of objs) {
       if (o.state !== 'hidden' || Math.hypot(o.center.x, o.center.z) > waveR - 0.3) continue;
@@ -635,6 +637,10 @@ function frame(fixedDt?: number) {
     if (k >= 1) dash.t = -1;
   }
   if (!uiVillage && t >= T_FP) { uiVillage = true; ui.setMode('village'); }
+  // Claim: Titelkarte, während die Welt entsteht (bis kurz nach Beginn von Flug 1); Banner nach der Landung
+  const claimOn = t >= T_BURST + 0.7 && t < T_FLY1 + 0.5 && dash.t < 0;
+  if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
+  if (t >= T_FP + 0.4 && dash.t < 0) ui.showHero();
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(look);
   camera.updateMatrixWorld();
@@ -697,7 +703,7 @@ function frame(fixedDt?: number) {
 
 const DASH_DUR = 0.5;
 const dash = { t: -1, pos: V3(0, 0, 0), look: V3(0, 0, 0), fov: 38 };
-let uiVillage = false, paused = false;
+let uiVillage = false, paused = false, claimShown = false;
 
 /** Intro sofort beenden: alles fertig bauen, Schriftzug weg, Welt voll aufgedeckt. */
 function skipIntro() {
@@ -728,7 +734,9 @@ function jumpToWell() {
   ui.setMode('village');
 }
 
+const claimParam = new URLSearchParams(location.search).get('claim');
 const ui = createUI({
+  claim: (['titel', 'hand', 'unten'].includes(claimParam ?? '') ? claimParam : 'titel') as ClaimVariant,
   onJump: jumpToWell,
   onReplayIntro: () => location.reload(),
   onOpenChange: (open) => {
