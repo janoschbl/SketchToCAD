@@ -63,7 +63,7 @@ Kennzeichnung: **[geprüft]** = Quelle geöffnet/gelesen oder lokal ausgeführt.
 **Offen für den Folge-Agenten:** eine Maschine mit ≥ 24 GB GPU organisieren (Miet-GPU) und Kosten abstimmen. Das Dokument kann ohne Miet-GPU nur Stufe 0–1 ausführen.
 
 ### 2.2 Speicherplatz
-GObjaverse ist komplett **6,5 TB** [geprüft: README]. Nie komplett laden. Es gibt eine komprimierte Variante (ein tar pro Objekt, ~260k Dateien) und Teil-Indexdateien pro Kategorie. Plan: Pilot 100 Objekte → 5.000 → 20.000. Platz pro Objekt **zuerst an 10 Objekten messen** [Annahme: 38 Ansichten × mehrere Dateien sind je Objekt eher groß].
+GObjaverse ist komplett **6,5 TB** [geprüft: README]. Nie komplett laden. Es gibt eine komprimierte Variante (ein tar pro Objekt, ~260k Dateien) und Teil-Indexdateien pro Kategorie. Plan: Pilot 100 Objekte → 5.000 → 20.000. Platz pro Objekt **gemessen (Pilot, 3.4):** alle 7 Dateitypen × 40 Ansichten ≈ 33 MB; nur benötigte Dateien (`.png`, `_albedo.png`, `_nd.exr`, `.json`) ≈ 13,4 MB → 20.000 Objekte ≈ 270 GB. Der Server (OSS Hangzhou) lieferte nur **≈ 1–1,8 MB/s** gesamt (32 Threads) → 20.000 Objekte ≈ 2 Tage Download. [geprüft: lokal gemessen]
 Vorhandene Platten: Laptop `/home` 917 GB frei; Seagate-HDD 1,5 TB frei; Heim-PC `/mnt/storage` ~45 GB frei (System-Platte voll, siehe Memory `sketchlab-own-model`).
 
 ### 2.3 Software
@@ -83,7 +83,7 @@ Vorhandene Platten: Laptop `/home` 917 GB frei; Seagate-HDD 1,5 TB frei; Heim-PC
 ### 3.2 Filter (Reihenfolge)
 1. Nur Objekte mit Eintrag in `gobjaverse_280k_index_to_objaverse.json` (= haben Karten).
 2. Lizenz ∈ {`cc0`, `by`, `by-sa`}; Attribution je Objekt in `attribution.jsonl` festhalten (wie `lab/sketchgen/objaverse_stream.py`). `by-nc`/`by-nc-sa` ausschließen, falls ein Produkt denkbar ist. [Projektregel: Lizenz je Quelle klären]
-3. GObjaverse-Kategorien: Animals (28.882), Plants (7.195), Human-Shape (41.557, enthält Figuren/Kreaturen), optional Food; **„Poor-quality“ (107.001) ausschließen**. Beachte: die Zahlen summieren sich zu mehr als 280k → ein Objekt kann in mehreren Kategorien stehen. [geprüft: Projektseite]
+3. GObjaverse-Kategorien: Animals (28.882), Plants (7.195), Human-Shape (41.557, enthält Figuren/Kreaturen), optional Food; **„Poor-quality“ (107.001) ausschließen**. Beachte: die Zahlen summieren sich zu mehr als 280k → ein Objekt kann in mehreren Kategorien stehen. [geprüft: Projektseite] Diese Zahlen gelten für alle ~580k Objekte (`category_annotation.json` hat 579.337 Einträge); **innerhalb des 280k-Index** (tatsächlich 265.232 Einträge) sind es laut Teil-Indizes: Animals 17.239, Plants 4.140, Human-Shape 13.622, Poor-quality 41.597. [geprüft: Dateien geladen]
 4. Scans/Massenuploads raus: Tags/Namen mit `photogrammetry|scan|polycam|lidar|reality capture|…` (Regex `BAD` in `lab/sketchgen/objaverse_stream.py`), `animationCount > 0` raus.
 5. Fabelwesen: Stichwörter in Name/Tags (creature, monster, dragon, unicorn, … siehe `docs/objaverse-kategorien.md`).
 6. Aufteilung **nach Objekt** (nie nach Ansicht): 90 % train, 5 % val, 5 % test, per Hash der UID.
@@ -91,19 +91,32 @@ Vorhandene Platten: Laptop `/home` 917 GB frei; Seagate-HDD 1,5 TB frei; Heim-PC
 **Ergebnis Stufe 0:** `lab/gobj/select.jsonl` (UID, GObjaverse-ID, Kategorie, Lizenz, Autor, Split, Caption).
 
 ### 3.3 Pilot (zuerst!)
-100 Objekte (je ~40 % Tiere, 30 % Pflanzen, 30 % Kreaturen), alle 38 Ansichten laden. Zweck: Dateiformat prüfen (Abschnitt 4.1), Plattenbedarf messen, Skizzen-Generator entwickeln.
+100 Objekte (je ~40 % Tiere, 30 % Pflanzen, 30 % Kreaturen), alle 40 Ansichten laden. Zweck: Dateiformat prüfen (Abschnitt 4.1), Plattenbedarf messen, Skizzen-Generator entwickeln.
+
+### 3.4 Ergebnis Stufe 0 + Pilot (ausgeführt 2026-11-21) [geprüft: lokal]
+Skripte: `lab/gobj/select.py` → `lab/gobj/select.jsonl` + `pilot.json`; `lab/gobj/download.py` (URL-Schema aus dem offiziellen `download_gobjaverse_280k.py`, <https://github.com/modelscope/richdreamer/tree/main/dataset/gobjaverse>); `lab/gobj/inspect_sample.py` → `lab/gobj/pilot_sheet.png` (Übersicht Ansicht 0 aller 100) + `pilot_sheet.json`. Daten unter `lab/gobj/data/` (nicht im Git).
+- **Auswahl:** 29.720 Objekte (animal 11.467, plant 3.382, creature 4.104, human 10.767); Split train 26.647 / val 1.534 / test 1.539. Abgelehnt: 3.592 Scan-Stichwort, 1.689 Animation/Altersgrenze. **Kein einziges Objekt wurde wegen der Lizenz abgelehnt** und alle hatten Objaverse-Metadaten → der 280k-Index enthält offenbar nur `by`/`by-sa`/`cc0` (Treffer: by 29.333, by-sa 266, cc0 121).
+- **Pilot:** 100/100 Objekte vollständig geladen, 1,3 GB, Masken aus Alpha und aus Tiefe > 0 stimmen bei allen zu 100 % überein.
+- **Inhaltliche Auffälligkeiten (Sichtprüfung `pilot_sheet.png`):** ≈ 19 % untexturiert (weiß/grau, automatisch gezählt: Albedo-Sättigung < 20 und Helligkeit > 150) – als RGB-Zielbild für „farbige“ Ergebnisse ungeeignet, evtl. getrennt behandeln oder als eigener Stil („Tonmodell“); mehrere **Markenfiguren** (Sonic, Bowser, Yu-Gi-Oh-Drache) trotz CC-BY-Lizenz → Rechte der Figur ≠ Lizenz des Modells, für ein Produkt herausfiltern; Voxel-/Minecraft-Stil häufig; Sockel/Bodenplatten häufig; vereinzelt Scans, die der Stichwortfilter nicht erkennt; die Gruppe „creature“ (Stichwortregex) enthält auch normale Tiere (Orca, Wespe). Ein Objekt (121/615784) liegt, die übrigen stehen aufrecht.
+- **Nächster Schritt:** Filter für untexturiert/Marken/Voxel nachrüsten (Albedo-Statistik, Stichwortliste Marken), dann Stufe 1 (Skizzen) auf dem Pilot.
 
 ---
 
 ## 4. Stufe 1 – Skizzen aus den Karten erzeugen
 
 ### 4.1 Zuerst prüfen (Annahmen, nicht geöffnet)
-Pro Ansicht liegen laut README: `NNNNN.png` (RGB), `NNNNN_albedo.png`, `NNNNN_hdr.exr`, `NNNNN_mr.png`, `NNNNN_nd.exr` (Normalen + Tiefe), `NNNNN.json` (Kamera); Ordner `campos_512_v4` (Auflösung vermutlich 512). [geprüft: README]
-Der Folge-Agent muss **an den Beispieldaten** `render_data_examples.zip` (Link im README) klären:
+Pro Ansicht liegen laut README: `NNNNN.png` (RGB), `NNNNN_albedo.png`, `NNNNN_hdr.exr`, `NNNNN_mr.png`, `NNNNN_nd.exr` (Normalen + Tiefe), `NNNNN.json` (Kamera); Ordner `campos_512_v4`. [geprüft: README] Das offizielle Download-Skript lädt zusätzlich `NNNNN_ng.exr` und Ansichten 0–39. [geprüft: Skript]
+**Geklärt am Pilot (2026-11-21) [geprüft: lokal ausgelesen]:**
+- Auflösung **512×512**. `NNNNN.png` = **RGBA mit transparentem Hintergrund** (Ecke = 0,0,0,0) → Maske = Alpha > 0; identisch mit Tiefe > 0. `_albedo.png`, `_mr.png` = RGBA mit Alpha überall 255, Hintergrund schwarz.
+- `_nd.exr`: ein Kanal-Satz `RGBA`, float16. **RGB = Normalen in [−1, 1]** (Hintergrund = (0,0,1)), **A = Tiefe** (Hintergrund = 0, Objekt ≈ 0,9–2,2 bei Kameraabstand 1,55–1,77). Lesbar mit dem Paket `OpenEXR` (`OpenEXR.File(p).channels()["RGBA"].pixels`) oder OpenCV mit `OPENCV_IO_ENABLE_OPENEXR=1`. `_ng.exr` wie `_nd`, aber A = 1.
+- Kamera-JSON: `origin`, Achsen `x`,`y`,`z`, `x_fov`=`y_fov`=0,691 rad (≈ 39,6°), `bbox`, `scale`, `offset`, `max_depth`=5.
+- **Ansichten (40 Dateien, 38 verschiedene):** 0–23 Ring mit Azimut je 15° bei einer **pro Objekt zufälligen Elevation 5–27°** (Pilot: 5,0–26,8°), Abstand 1,77; **24 = Duplikat von 0**; 25 = von oben (90°), 26 = von unten (−90°); 27–38 Ring mit Azimut je 30° bei −2°, Abstand 1,55; **39 = Duplikat von 27**.
+
+Ursprünglich offene Punkte (jetzt beantwortet, siehe oben):
 - Hintergrund der RGB-Bilder: weiß/schwarz/transparent (RGBA)? Entscheidet, ob eine Maske aus Alpha oder aus Tiefe kommt.
 - Kanalaufbau von `_nd.exr` (3 Normalen + 1 Tiefe?), Wertebereich, Hintergrundwert für „leer“.
 - Normalen-Koordinatensystem: Unity-basiert, nicht Blender (laut README, mit Beispielcode zur Umrechnung). Für Kanten reicht die **relative** Änderung der Normalen, die Umrechnung ist erst für 3D-Vergleiche nötig.
-- Ansichtswinkel: 38 Ansichten = 24 bei Elevation 5–30° (Azimut je 15°) + 12 bei −5…5° (Azimut je 30°) + Oben + Unten. [geprüft: Projektseite]
+- Ansichtswinkel laut Projektseite: 38 Ansichten = 24 bei Elevation 5–30° (Azimut je 15°) + 12 bei −5…5° (Azimut je 30°) + Oben + Unten. [geprüft: Projektseite; im Pilot bestätigt, Details oben]
 
 ### 4.2 Linien ableiten (Rastervariante, zuerst bauen)
 Eingabe pro Ansicht: Maske M, Normalen N, Tiefe D, RGB, Albedo A.
@@ -133,7 +146,7 @@ lab/gobj/pairs/<gobj_id>/<view>/
 Training liest daraus `(sketch, target, caption)`.
 
 ### 4.5 Ansichten wählen
-Nicht alle 38 verwenden. Je Objekt 6–8 Ansichten, davon die Hälfte „3/4-Ansicht“ (Elevation 15–30°), der Rest Seite/Front/Rücken. Ober-/Unteransicht nur wenige (selten gezeichnet). Skizzen sind im Einsatz meist 3/4-Ansichten.
+Nicht alle 38 verwenden (24 und 39 sind Duplikate). Je Objekt 6–8 Ansichten, davon die Hälfte „3/4-Ansicht“ (Ring 0–23; welcher Azimut „vorne“ ist, ist je Objekt unbekannt [Annahme: nicht einheitlich]; die Elevation ist pro Objekt fest, 5–27°), der Rest Seite/Front/Rücken. Ober-/Unteransicht nur wenige (selten gezeichnet). Skizzen sind im Einsatz meist 3/4-Ansichten.
 
 ---
 
@@ -236,7 +249,7 @@ Jede Stufe einzeln messen, damit klar ist, wo Qualität verloren geht.
 | # | Arbeit | Abnahme |
 |---|---|---|
 | M0 | Umgebungen: Daten-Venv (OpenEXR, OpenCV), Cloud-GPU mit TRELLIS + diffusers lauffähig | TRELLIS erzeugt aus einem Beispielbild ein GLB |
-| M1 | Stufe 0 + Pilot (100 Objekte) laden, Format klären, Platzbedarf messen | `select.jsonl`, Formatnotiz (Hintergrund, EXR-Kanäle) |
+| M1 | Stufe 0 + Pilot (100 Objekte) laden, Format klären, Platzbedarf messen | `select.jsonl`, Formatnotiz (Hintergrund, EXR-Kanäle) – **erledigt 2026-11-21, siehe 3.4/4.1** |
 | M2 | Skizzen-Generator (Raster, dann Stil) | 50 Beispiele, vom Nutzer freigegeben |
 | M3 | Zero-Shot-Baseline: Skizze → ControlNet → TRELLIS auf Pilot-Test | Maske-IoU-Zahl + Bilderblatt; Oberschranke (TRELLIS auf GT-Bild) |
 | M4 | Skalierung Stufe 0–1 auf 5.000, dann 20.000 Objekte | Paare vorhanden, Splits sauber |
@@ -264,7 +277,7 @@ lab/gobj/
 
 ## 12. Quellen (alle geöffnet)
 
-- GObjaverse: <https://aigc3d.github.io/gobjaverse> · <https://huggingface.co/datasets/3DAIGC/gobjaverse> (README: 38 Ansichten, Dateistruktur, Downloads, Kategorien, Koordinatensystem)
+- GObjaverse: <https://aigc3d.github.io/gobjaverse> · <https://huggingface.co/datasets/3DAIGC/gobjaverse> (README: 38 Ansichten, Dateistruktur, Downloads, Kategorien, Koordinatensystem) · Download-Skripte: <https://github.com/modelscope/richdreamer/tree/main/dataset/gobjaverse>
 - Objaverse: <https://arxiv.org/abs/2212.08051> · <https://huggingface.co/datasets/allenai/objaverse>
 - TRELLIS: <https://github.com/microsoft/TRELLIS> · Paper <https://arxiv.org/abs/2412.01506> · Gewichte <https://huggingface.co/microsoft/TRELLIS-image-large>
 - Scribble-ControlNet SDXL: <https://huggingface.co/xinsir/controlnet-scribble-sdxl-1.0>
