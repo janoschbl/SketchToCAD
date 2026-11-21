@@ -109,6 +109,65 @@ export function cottage(o: { wall: string; roof: string; w?: number; d?: number;
   return g;
 }
 
+/** Schriftzug als Textur (für Fries/Schilder) */
+function textPlate(text: string, w: number, h: number, bg: string, fg: string, font = '700 88px Georgia, serif') {
+  const cv = document.createElement('canvas');
+  cv.width = 1024; cv.height = Math.round(1024 * (h / w));
+  const c = cv.getContext('2d')!;
+  c.fillStyle = bg; c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = fg; c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.letterSpacing = '24px';
+  c.fillText(text, cv.width / 2, cv.height / 2 + 4);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, flatShading: true });
+}
+
+/** Museum im klassischen Stil: Freitreppe, Säulenportikus, Giebel mit Schriftzug, Banner. Front zeigt nach +Z. */
+export function museum() {
+  const g = new THREE.Group();
+  const w = 4.0, d = 3.2, h = 2.5;
+  const marble = M('#efe6d6'), marbleShade = M('#d9ccb6'), stone = M(PAL.stone), dark = M(PAL.woodDark);
+  // Sockel + Freitreppe
+  add(g, B(w + 0.6, 0.3, d + 0.5), stone, 0, 0.15, -0.1);
+  for (let i = 0; i < 3; i++) add(g, B(w + 0.3 - i * 0.25, 0.14, 0.45), marbleShade, 0, 0.07 + i * 0.14, d / 2 + 0.75 - i * 0.28);
+  // Baukörper (etwas zurückgesetzt hinter den Säulen)
+  add(g, B(w - 0.4, h, d - 0.9), marble, 0, 0.3 + h / 2, -0.45);
+  // Tür + Fenster mit warmem Licht
+  add(g, B(0.95, 1.55, 0.1), M('#6b3f2c'), 0, 0.3 + 0.78, d / 2 - 0.88);
+  add(g, B(1.1, 0.12, 0.14), dark, 0, 0.3 + 1.6, d / 2 - 0.87);
+  for (const sx of [-1, 1]) add(g, B(0.5, 0.9, 0.06), GLOW(), sx * 1.15, 0.3 + 1.25, d / 2 - 0.88);
+  // Säulen
+  const colZ = d / 2 + 0.2;
+  for (const x of [-1.6, -0.55, 0.55, 1.6]) {
+    add(g, B(0.42, 0.14, 0.42), marbleShade, x, 0.37, colZ);
+    add(g, C(0.15, 0.17, h - 0.3, 10), marble, x, 0.44 + (h - 0.3) / 2, colZ);
+    add(g, B(0.42, 0.14, 0.42), marbleShade, x, 0.3 + h - 0.0, colZ);
+  }
+  // Gebälk mit Schriftzug MUSEUM
+  const top = 0.3 + h + 0.07;
+  add(g, B(w + 0.3, 0.42, d + 0.4), marbleShade, 0, top + 0.21, -0.05);
+  const frieze = add(g, B(w - 0.2, 0.3, 0.02), textPlate('MUSEUM', w - 0.2, 0.3, '#e6dac4', '#5a3a2a'), 0, top + 0.21, d / 2 + 0.16);
+  frieze.userData.noInk = true;
+  // Giebel (Dreieck) + flaches Dach
+  const shape = new THREE.Shape();
+  shape.moveTo(-w / 2 - 0.15, 0); shape.lineTo(w / 2 + 0.15, 0); shape.lineTo(0, 0.95); shape.closePath();
+  const ped = new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false });
+  add(g, ped, marble, 0, top + 0.42, d / 2 - 0.12);
+  add(g, B(w + 0.1, 0.12, d + 0.2), M('#b8a993'), 0, top + 0.48, -0.15);
+  // Rundfenster im Giebel
+  const oc = add(g, C(0.2, 0.2, 0.06, 14), GLOW(), 0, top + 0.78, d / 2 + 0.2, Math.PI / 2);
+  oc.castShadow = false;
+  // Rote Banner zwischen den äußeren Säulen
+  for (const sx of [-1, 1]) {
+    const ban = add(g, B(0.5, 1.3, 0.03), M('#c4493a'), sx * 1.07, 0.3 + h - 0.85, colZ + 0.05);
+    ban.userData.noInk = true;
+    add(g, B(0.56, 0.06, 0.06), M('#e0b04a'), sx * 1.07, 0.3 + h - 0.18, colZ + 0.05);
+  }
+  return g;
+}
+
 export function windmill() {
   const g = new THREE.Group();
   add(g, C(1.75, 1.85, 0.5, 8), M(PAL.stone), 0, 0.25, 0);

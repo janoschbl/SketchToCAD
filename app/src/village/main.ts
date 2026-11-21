@@ -80,7 +80,7 @@ const RING = [
   { a: 1.98, wall: '#f6e2c4', roof: '#9b4f5f', w: 3.0, d: 2.7, h: 1.9, label: 'Rosenhaus' },
   { a: 2.6, wall: '#f4dcc0', roof: '#d39a3a', w: 3.3, label: 'Senfhaus' },
   { a: 3.62, wall: '#eed7b8', roof: '#5d7f4a', w: 3.3, label: 'Kräuterhaus' },
-  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Rathaus' },
+  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Museum' },   // wird als Museum gebaut (Projektvideo)
   { a: -1.0, wall: '#f0d8b6', roof: '#6a5a9a', w: 3.2, label: 'Fliederhaus' },
   { a: -0.42, wall: '#f3dcb2', roof: '#c26a3a', w: 3.0, label: 'Torhaus West' },
 ];
@@ -90,7 +90,7 @@ const houses: { x: number; z: number; ry: number; wall: string; roof: string; w?
   { x: 7.5, z: -18, ry: -0.25, wall: '#f6e2c4', roof: '#4f7f8a', w: 2.9, d: 2.6, h: 1.9, label: 'Fischerhaus', door: true },
 ];
 houses.forEach((h, i) => {
-  defs.push({ id: 'house' + i, label: h.label, make: () => P.cottage(h), x: h.x, z: h.z, ry: h.ry, col: 2.9 });
+  defs.push({ id: 'house' + i, label: h.label, make: () => (h.label === 'Museum' ? P.museum() : P.cottage(h)), x: h.x, z: h.z, ry: h.ry, col: 2.9 });
   if (!h.door) return;
   // Hausweg: von der Tür zum nächsten Punkt auf einer Hauptstraße
   const [fx, fz] = front(h.x, h.z, h.ry, 2.8);
@@ -395,7 +395,7 @@ canvas.addEventListener('pointerup', (e) => {
   setHover(null);
   sfx.pop(1.1);
   if (o.id === 'well') { wellSeen = true; ui.openWell(); }
-  else { visited.add(o.id); ui.openTool(o.label ?? 'Werkstatt'); }
+  else { visited.add(o.id); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Werkstatt'); }
 });
 canvas.addEventListener('pointercancel', endDrag);
 
@@ -794,7 +794,7 @@ function jumpToWell() {
 }
 
 // ---------------------------------------------------------------- Pitch-Modus (?pitch): Stationen per Taste
-// 1 Intro neu · 2 zum Brunnen · 3 Notizblock · 4 Werkstatt · 5 Platsch-Demo · F Vollbild · M Ton
+// 1 Intro neu · 2 zum Brunnen · 3 Notizblock · 4 Werkstatt · 5 Platsch-Demo · 6 Museum · F Vollbild · M Ton
 const PITCH = new URLSearchParams(location.search).has('pitch');
 function platschDemo() {
   if (drown.active || ui.isOpen()) return;
@@ -814,6 +814,7 @@ addEventListener('keydown', (e) => {
   else if (k === '3') { if (time < T_FP) jumpToWell(); setTimeout(() => { wellSeen = true; ui.openWell(); }, time < T_FP ? 700 : 0); }
   else if (k === '4') { if (time < T_FP) skipIntro(); ui.openTool('Werkstatt'); }
   else if (k === '5') platschDemo();
+  else if (k === '6') { if (time < T_FP) skipIntro(); ui.openMuseum(); }
 });
 
 scene.add(camera);
@@ -831,7 +832,7 @@ const ui = createUI({
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
     // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
-    paused = open && !!document.querySelector('.vshop.on');
+    paused = open && !!document.querySelector('.vshop.on, .vmuseum.on');
   },
 });
 ui.setMode('intro');
@@ -872,7 +873,7 @@ function setHover(o: SketchObj | null, x = 0, y = 0) {
     hovered = o;
     document.body.classList.toggle('hovering', !!o);
   }
-  ui.showHover(o ? (o.id === 'well' ? 'Brunnen · So funktioniert’s' : `${o.label} · Werkstatt`) : null, x, y);
+  ui.showHover(o ? (o.id === 'well' ? 'Brunnen · So funktioniert’s' : o.label === 'Museum' ? 'Museum · Projekt ansehen' : `${o.label} · Werkstatt`) : null, x, y);
 }
 // Hinweis über dem Brunnen nach der Landung, bis man ihn einmal geöffnet hat
 let wellSeen = false;
@@ -907,8 +908,10 @@ const marks = houseObjs.map((o) => {
   m.className = 'vmark';
   m.type = 'button';
   m.setAttribute('aria-label', `${o.label}: Werkstatt öffnen`);
-  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>!</b><em>${o.label}</em></span>`;
-  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); ui.openTool(o.label ?? 'Werkstatt'); });
+  const isMuseum = o.label === 'Museum';
+  if (isMuseum) m.classList.add('museum');
+  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>${isMuseum ? '▶' : '!'}</b><em>${isMuseum ? 'Museum · Projekt ansehen' : o.label}</em></span>`;
+  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Werkstatt'); });
   document.body.appendChild(m);
   return { o, m, occluded: false };
 });

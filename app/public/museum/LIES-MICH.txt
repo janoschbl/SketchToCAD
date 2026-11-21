@@ -1,0 +1,9 @@
+Museum im Skizzendorf – hier das fertige Projektvideo ablegen:
+
+  projekt.mp4   (Pflicht; H.264/MP4, 1920x1080, gern unter 50 MB)
+  projekt.jpg   (optional; Vorschaubild, gleiches Seitenverhältnis 16:9)
+
+Titel und Beschreibung auf dem Messingschild ändern:
+  app/src/village/ui.ts → MUSEUM_TITLE und MUSEUM_NOTE (ganz oben)
+
+Seite neu laden – fertig. Im Pitch-Modus (?pitch) öffnet Taste 6 direkt das Museum.

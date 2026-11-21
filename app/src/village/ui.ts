@@ -3,14 +3,19 @@
 
 // Platzhalter – vor dem Livegang ersetzen
 const CONTACT_MAIL = 'kontakt@beispiel.de';
-const TOOL_URL = '/'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
+const TOOL_URL = '/';
+// Museum: fertiges Projektvideo. Datei hier ablegen: app/public/museum/projekt.mp4 (optional Vorschaubild projekt.jpg)
+const MUSEUM_VIDEO = '/museum/projekt.mp4';
+const MUSEUM_POSTER = '/museum/projekt.jpg';
+const MUSEUM_TITLE = 'Unser erstes Projekt';
+const MUSEUM_NOTE = 'Von der Skizze über SketchToCAD bis in die fertige Szene.'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
 
 export const CLAIM = 'Gestalten statt würfeln.';
 export const SUBLINE = 'Prompten ist schnell. Zeichnen ist genau. SketchToCAD verbindet beides – direkt in 3D.';
 /** Design-Varianten für den Claim im Intro, umschaltbar per ?claim=titel|hand|unten */
 export type ClaimVariant = 'titel' | 'hand' | 'unten';
 
-export type QuestKey = 'look' | 'walk' | 'well' | 'house';
+export type QuestKey = 'look' | 'walk' | 'well' | 'house' | 'museum';
 
 export interface VillageUI {
   setMode(mode: 'intro' | 'village'): void;
@@ -24,6 +29,7 @@ export interface VillageUI {
   showHover(label: string | null, x?: number, y?: number): void;
   openWell(): void;
   openTool(house: string): void;
+  openMuseum(): void;
   isOpen(): boolean;
 }
 
@@ -148,9 +154,9 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const TASKS: [QuestKey, string, string][] = touch
     ? [['look', 'Umsehen', 'mit dem Finger wischen'], ['walk', 'Herumlaufen', 'Joystick links unten'],
-       ['well', 'Brunnen antippen', 'so funktioniert’s'], ['house', 'Eine Werkstatt besuchen', 'ein Haus antippen']]
+       ['well', 'Brunnen antippen', 'so funktioniert’s'], ['museum', 'Museum erkunden', 'ein fertiges Projekt ansehen'], ['house', 'Eine Werkstatt besuchen', 'ein Haus antippen']]
     : [['look', 'Umsehen', 'Maus gedrückt ziehen'], ['walk', 'Herumlaufen', 'W A S D oder Pfeiltasten'],
-       ['well', 'Brunnen anklicken', 'so funktioniert’s'], ['house', 'Eine Werkstatt besuchen', 'ein Haus anklicken']];
+       ['well', 'Brunnen anklicken', 'so funktioniert’s'], ['museum', 'Museum erkunden', 'ein fertiges Projekt ansehen'], ['house', 'Eine Werkstatt besuchen', 'ein Haus anklicken']];
   const quest = el('aside', 'vquest');
   quest.setAttribute('aria-label', 'Quest');
   quest.innerHTML = `
@@ -236,6 +242,38 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   document.body.appendChild(shop);
   const frame = shop.querySelector('iframe')!;
 
+  // ---------- Museum: Ausstellungsraum mit goldgerahmtem Projektvideo
+  const museum = el('div', 'vmuseum');
+  museum.setAttribute('role', 'dialog');
+  museum.setAttribute('aria-label', 'Museum');
+  museum.innerHTML = `
+    <div class="vmuseum-room" aria-hidden="true"></div>
+    <button class="vbtn vmuseum-back" data-act="close">← Zurück ins Dorf</button>
+    <div class="vmuseum-stage">
+      <div class="vmuseum-frame">
+        <video class="vmuseum-video" controls playsinline preload="metadata" poster="${MUSEUM_POSTER}"></video>
+        <div class="vmuseum-empty"><span class="hw-big">Hier läuft bald unser fertiges Projekt.</span><small>Video ablegen unter <code>app/public${MUSEUM_VIDEO}</code></small></div>
+      </div>
+      <div class="vmuseum-plaque">
+        <span class="vmuseum-no">Exponat Nr. 1</span>
+        <b>${MUSEUM_TITLE}</b>
+        <span>${MUSEUM_NOTE}</span>
+        <span class="vmuseum-tools">Skizze → SketchToCAD → USD → Szene</span>
+      </div>
+    </div>`;
+  document.body.appendChild(museum);
+  const video = museum.querySelector('video')!;
+  video.addEventListener('error', () => museum.classList.add('empty'));
+  video.addEventListener('loadeddata', () => museum.classList.remove('empty'));
+  function openMuseum() {
+    questDone('museum');
+    veil.classList.remove('on');
+    if (!video.src) { museum.classList.add('empty'); video.src = MUSEUM_VIDEO; }
+    museum.classList.add('on');
+    setOpen('shop');
+    setTimeout(() => { if (!museum.classList.contains('empty')) video.play().catch(() => {}); }, 450);
+  }
+
   let open: 'card' | 'shop' | null = null;
   const setOpen = (v: typeof open) => { open = v; opts.onOpenChange?.(!!v); };
 
@@ -272,6 +310,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
 
   function closeAll() {
     veil.classList.remove('on');
+    if (museum.classList.contains('on')) { museum.classList.remove('on'); video.pause(); }
     if (shop.classList.contains('on')) {
       shop.classList.remove('on');
       setTimeout(() => { if (!shop.classList.contains('on')) frame.src = 'about:blank'; }, 400);
@@ -366,6 +405,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       tip.classList.add('on');
     },
     openWell: () => { questDone('well'); showCard(WELL, true); },
+    openMuseum,
     showQuest() {
       if (questShown) return;
       questShown = true;
