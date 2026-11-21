@@ -468,3 +468,28 @@ body.hovering #scene { cursor: pointer; }
 .pad-todo::before { content: "!"; position: absolute; left: 0; top: 0; font-weight: 700; }
 a.pad-link { text-decoration: none; display: inline-block; }
 .pad-ink p b { font-weight: 700; color: #152259; }
+
+/* ================================================================ Platsch: Wasser-Overlay (drown.ts) */
+.vdrown { position: fixed; inset: 0; z-index: 12; pointer-events: none; display: none; --level: 0; --dark: 0; }
+.vdrown.on { display: block; }
+.vdrown-water { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--level) * 100%);
+  background: linear-gradient(to bottom, rgba(60, 150, 170, 0.32), rgba(18, 72, 98, 0.55) 60%, rgba(8, 36, 58, 0.72));
+  backdrop-filter: blur(1.5px) saturate(0.75); -webkit-backdrop-filter: blur(1.5px) saturate(0.75); }
+.vdrown-wave { position: absolute; left: -5%; width: 110%; top: -22px; height: 30px; animation: vdrown-wave 1.2s ease-in-out infinite alternate; }
+.vdrown-wave path { fill: rgba(60, 150, 170, 0.45); stroke: rgba(220, 250, 255, 0.85); stroke-width: 3; vector-effect: non-scaling-stroke; }
+@keyframes vdrown-wave { from { transform: translateX(-2%); } to { transform: translateX(2%); } }
+.vdrown-rays { position: absolute; inset: 0; opacity: 0.35; mix-blend-mode: screen;
+  background: repeating-linear-gradient(100deg, rgba(200, 245, 255, 0) 0 60px, rgba(200, 245, 255, 0.35) 70px 82px, rgba(200, 245, 255, 0) 95px 170px);
+  -webkit-mask: linear-gradient(to bottom, #000, transparent 70%); mask: linear-gradient(to bottom, #000, transparent 70%); animation: vdrown-rays 4s linear infinite; }
+@keyframes vdrown-rays { from { background-position: 0 0; } to { background-position: 340px 0; } }
+.vdrown-bubbles { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; }
+.vdrown.under .vdrown-bubbles { opacity: 1; }
+.vdrown-bubbles i { position: absolute; bottom: -20px; border-radius: 50%; border: 2px solid rgba(225, 250, 255, 0.85); background: rgba(225, 250, 255, 0.15);
+  animation: vdrown-bubble 1.9s ease-in infinite; }
+@keyframes vdrown-bubble { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(14px, -105vh); opacity: 0.2; } }
+.vdrown-dark { position: absolute; inset: 0; background: #050d14; opacity: var(--dark); }
+.vdrown-msg { position: absolute; left: 50%; top: 18%; transform: translateX(-50%) rotate(-2deg); margin: 0; white-space: nowrap;
+  font: 700 clamp(28px, 4vw, 46px)/1 var(--hand); color: #fff8ec; text-shadow: 0 3px 16px rgba(10, 30, 45, 0.75); opacity: 0; transition: opacity 0.5s; }
+.vdrown.msg .vdrown-msg { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .vdrown-bubbles i, .vdrown-wave, .vdrown-rays { animation: none; } }
+body.drowning .vquest, body.drowning .vkeys, body.drowning .vjump, body.drowning .vhint, body.drowning .vmark { opacity: 0 !important; pointer-events: none !important; }

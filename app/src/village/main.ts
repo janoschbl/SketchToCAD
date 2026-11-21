@@ -12,6 +12,7 @@ import {
 import { createPost } from './post';
 import { makeSticker, stickOnPrism } from './stickers';
 import { createUI, type ClaimVariant } from './ui';
+import { createDrown } from './drown';
 
 // ---------------------------------------------------------------- Renderer & Szene
 
@@ -388,7 +389,7 @@ canvas.addEventListener('pointerup', (e) => {
   const wasDrag = dragging;
   endDrag();
   // Kurzer Klick/Tipp (kein Umsehen) auf Haus oder Brunnen
-  if (!wasDrag || press.moved > 7 || !free || dash.t >= 0 || ui.isOpen()) return;
+  if (!wasDrag || press.moved > 7 || !free || dash.t >= 0 || ui.isOpen() || drown.active) return;
   const o = pick(e.clientX, e.clientY);
   if (!o) return;
   setHover(null);
@@ -452,10 +453,12 @@ const colliders = defs.map((d, i) => ({
   o: objs[i], x: d.x, z: d.z,
   r: d.id.startsWith('house') ? 2.25 : d.id === 'well' ? 1.4 : d.id.startsWith('tree') ? 0.55 : d.col > 0 ? Math.max(0.3, d.col * 0.6) : 0,
 })).filter((c) => c.r > 0);
+// Wasser ist jetzt begehbar: am Rand watet man, im tiefen Wasser geht man unter (siehe drown.ts)
 function walkable(x: number, z: number) {
-  if (Math.hypot(x, z) > coastRadius(Math.atan2(z, x)) - 2.5) return false;
-  return !inWater(x, z, ponds, 0.3);
+  return Math.hypot(x, z) < coastRadius(Math.atan2(z, x)) - 0.2;
 }
+const deepWater = (x: number, z: number) => inWater(x, z, ponds, -1.1);
+let wade = 0;
 function moveFp(dx: number, dz: number) {
   let nx = fp.pos.x + dx, nz = fp.pos.z + dz;
   for (const c of colliders) {
@@ -647,25 +650,35 @@ function frame(fixedDt?: number) {
       fp.pitch = fp.pitchT = Math.atan2(d.y, Math.hypot(d.x, d.z));
       showJoystick();
     }
-    let kx = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
-    let kz = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
-    const jm = Math.hypot(joy.x, joy.y);
-    if (jm > 0.12) { kx += joy.x; kz -= joy.y; }
-    // Joystick ganz ausgelenkt = rennen
-    const speed = (keys.has('shift') || jm > 0.95 ? 7 : 3.4) * dt;
-    if (kx || kz) {
-      const n = Math.max(1, Math.hypot(kx, kz));
-      const fx = -Math.sin(fp.yaw), fz = -Math.cos(fp.yaw), rx = Math.cos(fp.yaw), rz = -Math.sin(fp.yaw);
-      moveFp(((fx * kz + rx * kx) / n) * speed, ((fz * kz + rz * kx) / n) * speed);
-      if (Math.hypot(fp.pos.x - PLAZA_POS.x, fp.pos.z - PLAZA_POS.z) > 2.5) ui.questDone('walk');
-      fp.bob += speed * 2.6;
+    if (drown.active) {
+      // Platsch: Szene steuert die Kamera (untergehen → im Brunnen auftauchen → herausklettern)
+      const r = drown.update(dt, camera, look);
+      if (r?.done && r.pos) { fp.pos.copy(r.pos); fp.yaw = fp.yawT = r.yaw ?? 0; fp.pitch = fp.pitchT = 0; wade = 0; }
+      fov = FOV_FP;
+    } else {
+      let kx = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
+      let kz = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
+      const jm = Math.hypot(joy.x, joy.y);
+      if (jm > 0.12) { kx += joy.x; kz -= joy.y; }
+      // Joystick ganz ausgelenkt = rennen
+      const speed = (keys.has('shift') || jm > 0.95 ? 7 : 3.4) * dt * (1 - 0.5 * wade);
+      if (kx || kz) {
+        const n = Math.max(1, Math.hypot(kx, kz));
+        const fx = -Math.sin(fp.yaw), fz = -Math.cos(fp.yaw), rx = Math.cos(fp.yaw), rz = -Math.sin(fp.yaw);
+        moveFp(((fx * kz + rx * kx) / n) * speed, ((fz * kz + rz * kx) / n) * speed);
+        if (Math.hypot(fp.pos.x - PLAZA_POS.x, fp.pos.z - PLAZA_POS.z) > 2.5) ui.questDone('walk');
+        fp.bob += speed * 2.6;
+        if (deepWater(fp.pos.x, fp.pos.z)) { keys.clear(); setHover(null); drown.start(); }
+      }
+      // im flachen Wasser einsinken
+      wade += ((inWater(fp.pos.x, fp.pos.z, ponds, 0) ? 1 : 0) - wade) * (1 - Math.exp(-dt * 5));
+      fp.yaw += (fp.yawT - fp.yaw) * (1 - Math.exp(-dt * 14));
+      fp.pitch += (fp.pitchT - fp.pitch) * (1 - Math.exp(-dt * 14));
+      camera.position.set(fp.pos.x, EYE - wade * 0.55 + Math.sin(fp.bob) * 0.035, fp.pos.z);
+      const cp = Math.cos(fp.pitch);
+      look.set(fp.pos.x - Math.sin(fp.yaw) * cp * 10, camera.position.y + Math.sin(fp.pitch) * 10, fp.pos.z - Math.cos(fp.yaw) * cp * 10);
+      fov = FOV_FP;
     }
-    fp.yaw += (fp.yawT - fp.yaw) * (1 - Math.exp(-dt * 14));
-    fp.pitch += (fp.pitchT - fp.pitch) * (1 - Math.exp(-dt * 14));
-    camera.position.set(fp.pos.x, EYE + Math.sin(fp.bob) * 0.035, fp.pos.z);
-    const cp = Math.cos(fp.pitch);
-    look.set(fp.pos.x - Math.sin(fp.yaw) * cp * 10, camera.position.y + Math.sin(fp.pitch) * 10, fp.pos.z - Math.cos(fp.yaw) * cp * 10);
-    fov = FOV_FP;
   }
   // ---------- Sprung zum Brunnen: schneller Bogenflug (DASH_DUR) von der alten Kamera in den Dorfplatz-Blick
   if (dash.t >= 0) {
@@ -767,7 +780,7 @@ function skipIntro() {
   time = Math.max(time, T_FP);
 }
 function jumpToWell() {
-  if (dash.t >= 0 || ui.isOpen()) return;
+  if (dash.t >= 0 || ui.isOpen() || drown.active) return;
   gesture();
   dash.pos.copy(camera.position); dash.look.copy(look); dash.fov = camera.fov; dash.t = 0;
   if (time < T_FP) skipIntro();
@@ -779,6 +792,12 @@ function jumpToWell() {
   uiVillage = true;
   ui.setMode('village');
 }
+
+scene.add(camera);
+const drown = createDrown({
+  camera, eye: EYE,
+  onSplash: (big) => { sfx.whoosh(big ? 1.0 : 0.7, big ? 0.9 : 0.55); sfx.pop(big ? 0.55 : 0.8); },
+});
 
 const claimParam = new URLSearchParams(location.search).get('claim');
 const ui = createUI({
@@ -842,7 +861,7 @@ hint.innerHTML = `<div class="vhint-in"><svg viewBox="0 0 46 54" aria-hidden="tr
 document.body.appendChild(hint);
 const hintPos = V3(0, 0, 0);
 function updateHint(t: number) {
-  const active = free && !wellSeen && dash.t < 0 && !ui.isOpen();
+  const active = free && !wellSeen && dash.t < 0 && !ui.isOpen() && !drown.active;
   let show = false;
   if (active) {
     hintPos.set(0, 0.05, 1.35).project(camera);
@@ -873,7 +892,7 @@ const marks = houseObjs.map((o) => {
 const markPos = V3(0, 0, 0), toMark = V3(0, 0, 0);
 let markFrame = 0;
 function updateMarks() {
-  const active = free && dash.t < 0 && !ui.isOpen();
+  const active = free && dash.t < 0 && !ui.isOpen() && !drown.active;
   const occl = active && markFrame++ % 12 === 0;
   const solid = occl ? objs.filter((o) => o.state === 'done' && o.group.visible).map((o) => o.group) : [];
   for (const k of marks) {
@@ -917,7 +936,7 @@ requestAnimationFrame(() => frame());
 // fürs Debuggen in der Konsole
 Object.assign(window, {
   village: {
-    objs, gen, mask, fp, jumpToWell, skipIntro,
+    objs, gen, mask, fp, jumpToWell, skipIntro, drown, camera, scene,
     get time() { return time; },
     marks: { T_BURST, T_WUMM, T_FLY1, T_SIGN, T_DISSOLVE, T_FLY2, T_FP },
     /** Simulation manuell vorspulen (für Screenshots in gedrosselten Tabs). */
