@@ -796,12 +796,14 @@ function jumpToWell() {
 // ---------------------------------------------------------------- Pitch-Modus (?pitch): Stationen per Taste
 // 1 Intro neu · 2 zum Brunnen · 3 Notizblock · 4 Werkstatt · 5 Platsch-Demo · 6 Museum · F Vollbild · M Ton
 const PITCH = new URLSearchParams(location.search).has('pitch');
+// freies Ufer ohne Steg/Brücke: östlich vom Teich bei (17, 15), Blick nach Westen aufs Wasser
+const PLATSCH = { x: 22.4, z: 15.5, yaw: Math.PI / 2 };
 function platschDemo() {
   if (drown.active || ui.isOpen()) return;
   if (time < T_FP) skipIntro();
   free = true;
   // an den Teich stellen, Blick aufs Wasser, losgehen – der Rest passiert von selbst
-  fp.pos.set(12.6, EYE, 15); fp.yaw = fp.yawT = -Math.PI / 2; fp.pitch = fp.pitchT = -0.06; wade = 0;
+  fp.pos.set(PLATSCH.x, EYE, PLATSCH.z); fp.yaw = fp.yawT = PLATSCH.yaw; fp.pitch = fp.pitchT = -0.06; wade = 0;
   keys.clear(); keys.add('w');
 }
 addEventListener('keydown', (e) => {
@@ -819,8 +821,9 @@ addEventListener('keydown', (e) => {
 
 scene.add(camera);
 const drown = createDrown({
-  camera, eye: EYE,
+  camera, scene, eye: EYE,
   onSplash: (big) => { sfx.whoosh(big ? 1.0 : 0.7, big ? 0.9 : 0.55); sfx.pop(big ? 0.55 : 0.8); },
+  onWhoosh: (dur) => { sfx.whoosh(dur, 1.0); setTimeout(() => sfx.whoosh(dur * 0.6, 0.7), dur * 400); },
 });
 
 const claimParam = new URLSearchParams(location.search).get('claim');

@@ -159,9 +159,6 @@ export function museumHeimat() {
   // Großes Schild oben im Giebel – schon von der Ankunft aus lesbar
   add(g, B(1.9, 0.5, 0.08), wood, 0, top + 0.22, 1.66);
   sign(g, 'MUSEUM', 1.78, 0.4, 0, top + 0.22, 1.72, 0, '#f4e4c6', '#5a2a1e', '800 170px Georgia, serif');
-  // Ausleger mit hängendem Schild
-  add(g, B(0.9, 0.07, 0.07), wood, 1.95, 0.35 + 1.75, 1.6);
-  sign(g, 'MUSEUM', 0.85, 0.42, 2.1, 0.35 + 1.42, 1.6, 0, '#7a4b33', '#f6e6c4');
   // Schaufenster mit Exponat (Sockel + goldene Figur)
   add(g, B(0.92, 0.95, 0.05), M('#ffd796', '#ffb060', 0.55), -1.1, 0.35 + 1.0, 1.62).castShadow = false;   // Schaufenster (überdeckt das Standardfenster)
   add(g, B(1.0, 0.08, 0.12), wood, -1.1, 0.35 + 0.5, 1.66); add(g, B(1.0, 0.08, 0.12), wood, -1.1, 0.35 + 1.5, 1.66);

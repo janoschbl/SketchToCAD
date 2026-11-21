@@ -586,3 +586,17 @@ body.drowning .vquest, body.drowning .vkeys, body.drowning .vjump, body.drowning
 body.drowning .vsketch { opacity: 0; pointer-events: none; }
 /* „Sketch now“ übernimmt die Hauptaktion – doppelter Button in der Leiste entfällt */
 .vbar .vbar-cta { display: none !important; }
+
+/* Wasserrutsche: Wasserband unten, Tempo-Linien, heller Blitz am Rutschenende */
+.vdrown { --flash: 0; }
+.vdrown::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, #fffdf6, #dff6ff 60%, #bfe9f5); opacity: var(--flash); pointer-events: none; }
+.vdrown.sliding .vdrown-water { backdrop-filter: none; -webkit-backdrop-filter: none;
+  background: linear-gradient(to bottom, rgba(120, 220, 235, 0.55), rgba(40, 150, 175, 0.75)); }
+.vdrown.sliding .vdrown-rays { display: none; }
+.vdrown-speed { position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s; mix-blend-mode: screen;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,0) 0deg 7deg, rgba(255,255,255,0.22) 7.5deg 8deg, rgba(255,255,255,0) 8.5deg 15deg);
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 0 28%, #000 70%); mask: radial-gradient(circle at 50% 50%, transparent 0 28%, #000 70%);
+  animation: vdrown-speed 0.35s linear infinite; }
+.vdrown.sliding .vdrown-speed { opacity: 1; }
+@keyframes vdrown-speed { from { transform: rotate(0deg) scale(1); } to { transform: rotate(4deg) scale(1.04); } }
+@media (prefers-reduced-motion: reduce) { .vdrown-speed { animation: none; } }
