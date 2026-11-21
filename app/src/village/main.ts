@@ -451,7 +451,7 @@ addEventListener('blur', () => keys.clear());
 // Kollision: einfache Kreise je Objekt
 const colliders = defs.map((d, i) => ({
   o: objs[i], x: d.x, z: d.z,
-  r: d.id.startsWith('house') ? 2.25 : d.id === 'well' ? 1.4 : d.id.startsWith('tree') ? 0.55 : d.col > 0 ? Math.max(0.3, d.col * 0.6) : 0,
+  r: d.id.startsWith('house') ? (d.label === 'Museum' ? 2.9 : 2.25) : d.id === 'well' ? 1.4 : d.id.startsWith('tree') ? 0.55 : d.col > 0 ? Math.max(0.3, d.col * 0.6) : 0,
 })).filter((c) => c.r > 0);
 // Wasser ist jetzt begehbar: am Rand watet man, im tiefen Wasser geht man unter (siehe drown.ts)
 function walkable(x: number, z: number) {

@@ -124,46 +124,85 @@ function textPlate(text: string, w: number, h: number, bg: string, fg: string, f
   return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, flatShading: true });
 }
 
-/** Museum im klassischen Stil: Freitreppe, Säulenportikus, Giebel mit Schriftzug, Banner. Front zeigt nach +Z. */
+/** Rundbogen (Halbzylinder-Scheibe) als Fenster-/Portalabschluss, liegt in der XY-Ebene, Front nach +Z */
+function arch(g: THREE.Group, mat: THREE.Material, x: number, y: number, z: number, r: number, depth: number) {
+  return add(g, new THREE.CylinderGeometry(r, r, depth, 12, 1, false, Math.PI / 2, Math.PI), mat, x, y, z, Math.PI / 2, 0, 0);
+}
+
+/** Museum nach dem Vorbild des Landesmuseums Hannover (Neorenaissance, Hubert Stier, 1902) – im Low-Poly-Stil des Dorfs:
+ *  Sandstein, rustiziertes Erdgeschoss, Rundbogenfenster oben, Relief-Fries, Mittelrisalit mit Rundbogenportal und Kuppel,
+ *  runde Ecktürme mit Kupferhauben, Walmdach mit Grünspan. Front zeigt nach +Z. */
 export function museum() {
   const g = new THREE.Group();
-  const w = 4.0, d = 3.2, h = 2.5;
-  const marble = M('#efe6d6'), marbleShade = M('#d9ccb6'), stone = M(PAL.stone), dark = M(PAL.woodDark);
-  // Sockel + Freitreppe
-  add(g, B(w + 0.6, 0.3, d + 0.5), stone, 0, 0.15, -0.1);
-  for (let i = 0; i < 3; i++) add(g, B(w + 0.3 - i * 0.25, 0.14, 0.45), marbleShade, 0, 0.07 + i * 0.14, d / 2 + 0.75 - i * 0.28);
-  // Baukörper (etwas zurückgesetzt hinter den Säulen)
-  add(g, B(w - 0.4, h, d - 0.9), marble, 0, 0.3 + h / 2, -0.45);
-  // Tür + Fenster mit warmem Licht
-  add(g, B(0.95, 1.55, 0.1), M('#6b3f2c'), 0, 0.3 + 0.78, d / 2 - 0.88);
-  add(g, B(1.1, 0.12, 0.14), dark, 0, 0.3 + 1.6, d / 2 - 0.87);
-  for (const sx of [-1, 1]) add(g, B(0.5, 0.9, 0.06), GLOW(), sx * 1.15, 0.3 + 1.25, d / 2 - 0.88);
-  // Säulen
-  const colZ = d / 2 + 0.2;
-  for (const x of [-1.6, -0.55, 0.55, 1.6]) {
-    add(g, B(0.42, 0.14, 0.42), marbleShade, x, 0.37, colZ);
-    add(g, C(0.15, 0.17, h - 0.3, 10), marble, x, 0.44 + (h - 0.3) / 2, colZ);
-    add(g, B(0.42, 0.14, 0.42), marbleShade, x, 0.3 + h - 0.0, colZ);
+  const w = 5.0, d = 3.4;
+  const sand = M('#e9d3a5'), sandLight = M('#f3e2bd'), sandDark = M('#cdb183'), rust = M('#d8bf90');
+  const copper = M('#5e9a8a'), copperDark = M('#4a7f72'), slate = M('#5b6b78'), frieze = M('#c9ab7c');
+  const g0 = 0.3, f1 = 1.35, f2 = 1.25;                 // Sockel, Erdgeschoss, Obergeschoss
+  const top = g0 + f1 + 0.16 + f2;
+  // Sockel
+  add(g, B(w + 0.5, g0, d + 0.4), M(PAL.stone), 0, g0 / 2, 0);
+  // Baukörper
+  add(g, B(w, f1, d), rust, 0, g0 + f1 / 2, 0);
+  for (let i = 1; i <= 3; i++) add(g, B(w + 0.02, 0.035, d + 0.02), sandDark, 0, g0 + (f1 / 4) * i, 0);  // Rustika-Fugen
+  add(g, B(w + 0.14, 0.16, d + 0.14), sandLight, 0, g0 + f1 + 0.08, 0);                                   // Geschossgesims
+  add(g, B(w, f2, d), sand, 0, g0 + f1 + 0.16 + f2 / 2, 0);
+  add(g, B(w + 0.06, 0.2, d + 0.06), frieze, 0, top - 0.1, 0);                                             // Relief-Fries
+  for (let i = 0; i < 14; i++) add(g, B(0.16, 0.12, 0.04), sandDark, -w / 2 + 0.3 + i * 0.34, top - 0.1, d / 2 + 0.04).userData.noInk = true;
+  add(g, B(w + 0.3, 0.14, d + 0.3), sandLight, 0, top + 0.07, 0);                                          // Kranzgesims
+  // Walmdach (Grünspan) als flaches Pyramidenstumpf-Prisma
+  const roof = new THREE.CylinderGeometry(0.5, 1, 0.9, 4, 1).rotateY(Math.PI / 4);
+  roof.scale(w * 0.72, 1, d * 0.72);
+  add(g, roof, slate, 0, top + 0.14 + 0.45, 0);
+  // Obergeschoss: Rundbogenfenster zwischen Pilastern (Vorderseite, ohne Mittelteil)
+  const zf = d / 2 + 0.01;
+  for (const x of [-2.0, -1.35, 1.35, 2.0]) {
+    add(g, B(0.34, 0.6, 0.06), GLOW(), x, g0 + f1 + 0.16 + 0.5, zf);
+    arch(g, GLOW(), x, g0 + f1 + 0.16 + 0.8, zf, 0.17, 0.06).castShadow = false;
+    add(g, B(0.42, 0.06, 0.1), sandLight, x, g0 + f1 + 0.16 + 0.18, zf + 0.03);
   }
-  // Gebälk mit Schriftzug MUSEUM
-  const top = 0.3 + h + 0.07;
-  add(g, B(w + 0.3, 0.42, d + 0.4), marbleShade, 0, top + 0.21, -0.05);
-  const frieze = add(g, B(w - 0.2, 0.3, 0.02), textPlate('MUSEUM', w - 0.2, 0.3, '#e6dac4', '#5a3a2a'), 0, top + 0.21, d / 2 + 0.16);
-  frieze.userData.noInk = true;
-  // Giebel (Dreieck) + flaches Dach
-  const shape = new THREE.Shape();
-  shape.moveTo(-w / 2 - 0.15, 0); shape.lineTo(w / 2 + 0.15, 0); shape.lineTo(0, 0.95); shape.closePath();
-  const ped = new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false });
-  add(g, ped, marble, 0, top + 0.42, d / 2 - 0.12);
-  add(g, B(w + 0.1, 0.12, d + 0.2), M('#b8a993'), 0, top + 0.48, -0.15);
-  // Rundfenster im Giebel
-  const oc = add(g, C(0.2, 0.2, 0.06, 14), GLOW(), 0, top + 0.78, d / 2 + 0.2, Math.PI / 2);
-  oc.castShadow = false;
-  // Rote Banner zwischen den äußeren Säulen
+  for (const x of [-2.35, -1.68, -1.02, 1.02, 1.68, 2.35]) add(g, B(0.12, f2 - 0.1, 0.08), sandLight, x, g0 + f1 + 0.16 + f2 / 2, zf + 0.03);
+  // Erdgeschoss: kleinere Fenster
+  for (const x of [-2.0, -1.35, 1.35, 2.0]) add(g, B(0.3, 0.5, 0.06), GLOW(), x, g0 + 0.7, zf);
+
+  // Mittelrisalit: springt vor, höher, mit großem Rundbogenportal
+  const rw = 1.7, rz = d / 2 + 0.3, rh = top + 0.35;
+  add(g, B(rw, rh - g0, 0.7), sandLight, 0, g0 + (rh - g0) / 2, rz - 0.3);
+  add(g, B(rw + 0.16, 0.16, 0.86), sandLight, 0, rh + 0.08, rz - 0.3);
+  const portal = M('#5a3826');
+  add(g, B(0.8, 1.05, 0.06), portal, 0, g0 + 0.53, rz + 0.06);
+  arch(g, portal, 0, g0 + 1.05, rz + 0.06, 0.4, 0.06);
+  arch(g, sandDark, 0, g0 + 1.05, rz + 0.04, 0.5, 0.06);                                                   // Bogenlaibung
+  for (const sx of [-1, 1]) {                                                                              // Säulenpaare am Portal
+    add(g, C(0.07, 0.08, 1.45, 8), sandLight, sx * 0.62, g0 + 0.73, rz + 0.12);
+    add(g, B(0.2, 0.08, 0.2), sandDark, sx * 0.62, g0 + 1.48, rz + 0.12);
+  }
+  // Schriftzug über dem Portal, darüber ein großes Rundbogenfenster
+  const plate = add(g, B(1.4, 0.28, 0.03), textPlate('MUSEUM', 1.4, 0.28, '#f1e3c2', '#4a2e20', '800 150px Georgia, serif'), 0, g0 + f1 + 0.12, rz + 0.1);
+  plate.userData.noInk = true;
+  plate.userData.keep = true;   // nicht mit den anderen Teilen verschmelzen, sonst geht die Schrift-Textur verloren
+  add(g, B(0.5, 0.55, 0.06), GLOW(), 0, g0 + f1 + 0.16 + 0.5, rz + 0.06);
+  arch(g, GLOW(), 0, g0 + f1 + 0.16 + 0.77, rz + 0.06, 0.25, 0.06).castShadow = false;
+  // Kuppel mit Laterne über dem Mittelrisalit
+  add(g, C(0.62, 0.66, 0.3, 12), sandLight, 0, rh + 0.31, rz - 0.4);
+  add(g, new THREE.SphereGeometry(0.62, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), copper, 0, rh + 0.46, rz - 0.4);
+  add(g, C(0.1, 0.12, 0.3, 8), sandLight, 0, rh + 1.2, rz - 0.4);
+  add(g, new THREE.ConeGeometry(0.13, 0.28, 8), copperDark, 0, rh + 1.48, rz - 0.4);
+  // Freitreppe zum Portal
+  for (let i = 0; i < 3; i++) add(g, B(1.5 - i * 0.2, 0.1, 0.32), M(PAL.stone), 0, 0.05 + i * 0.1, rz + 0.62 - i * 0.22);
+  // Runde Ecktürme mit Kupferhauben
   for (const sx of [-1, 1]) {
-    const ban = add(g, B(0.5, 1.3, 0.03), M('#c4493a'), sx * 1.07, 0.3 + h - 0.85, colZ + 0.05);
-    ban.userData.noInk = true;
-    add(g, B(0.56, 0.06, 0.06), M('#e0b04a'), sx * 1.07, 0.3 + h - 0.18, colZ + 0.05);
+    const tx = sx * (w / 2 + 0.05), tz = d / 2 - 0.15, th = top + 0.45;
+    add(g, C(0.55, 0.6, th - g0, 10), sand, tx, g0 + (th - g0) / 2, tz);
+    add(g, C(0.62, 0.62, 0.14, 10), sandLight, tx, g0 + f1 + 0.08, tz);
+    add(g, C(0.64, 0.64, 0.14, 10), sandLight, tx, th + 0.07, tz);
+    add(g, new THREE.SphereGeometry(0.6, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), copper, tx, th + 0.14, tz);
+    add(g, new THREE.ConeGeometry(0.08, 0.35, 6), copperDark, tx, th + 0.85, tz);
+    for (const a of [-0.5, 0.5]) add(g, B(0.2, 0.42, 0.05), GLOW(), tx + Math.sin(a + sx * 0.6) * 0.56, g0 + f1 + 0.16 + 0.55, tz + Math.cos(a + sx * 0.6) * 0.56, 0, a + sx * 0.6);
+  }
+  // Laternen links und rechts der Treppe
+  for (const sx of [-1, 1]) {
+    add(g, B(0.08, 0.9, 0.08), M(PAL.woodDark), sx * 0.95, g0 + 0.45, rz + 0.55);
+    add(g, B(0.2, 0.24, 0.2), GLOW(), sx * 0.95, g0 + 1.0, rz + 0.55).castShadow = false;
   }
   return g;
 }
