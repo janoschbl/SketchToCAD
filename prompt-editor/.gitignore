@@ -1,0 +1,7 @@
+data/
+.env
+__pycache__/
+.venv/
+*.glb
+.pytest_cache/
+.DS_Store
