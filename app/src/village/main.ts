@@ -695,7 +695,7 @@ function frame(fixedDt?: number) {
   }
   if (!uiVillage && t >= T_FP) { uiVillage = true; ui.setMode('village'); }
   // Claim: Titelkarte, während die Welt entsteht (bis kurz nach Beginn von Flug 1); Banner nach der Landung
-  const claimOn = t >= T_BURST + 0.7 && t < T_FLY1 + 0.5 && dash.t < 0;
+  const claimOn = t >= T_TAP - 0.1 && t < T_FLY1 + 0.5 && dash.t < 0;
   if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
   if (t >= T_FP + 0.4 && dash.t < 0) { ui.showHero(); ui.showQuest(); }
   updateHint(t);
@@ -792,6 +792,29 @@ function jumpToWell() {
   uiVillage = true;
   ui.setMode('village');
 }
+
+// ---------------------------------------------------------------- Pitch-Modus (?pitch): Stationen per Taste
+// 1 Intro neu · 2 zum Brunnen · 3 Notizblock · 4 Werkstatt · 5 Platsch-Demo · F Vollbild · M Ton
+const PITCH = new URLSearchParams(location.search).has('pitch');
+function platschDemo() {
+  if (drown.active || ui.isOpen()) return;
+  if (time < T_FP) skipIntro();
+  free = true;
+  // an den Teich stellen, Blick aufs Wasser, losgehen – der Rest passiert von selbst
+  fp.pos.set(12.6, EYE, 15); fp.yaw = fp.yawT = -Math.PI / 2; fp.pitch = fp.pitchT = -0.06; wade = 0;
+  keys.clear(); keys.add('w');
+}
+addEventListener('keydown', (e) => {
+  if (!PITCH || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); return; }
+  if (ui.isOpen() && k !== '1') return;
+  if (k === '1') location.reload();
+  else if (k === '2') jumpToWell();
+  else if (k === '3') { if (time < T_FP) jumpToWell(); setTimeout(() => { wellSeen = true; ui.openWell(); }, time < T_FP ? 700 : 0); }
+  else if (k === '4') { if (time < T_FP) skipIntro(); ui.openTool('Werkstatt'); }
+  else if (k === '5') platschDemo();
+});
 
 scene.add(camera);
 const drown = createDrown({
