@@ -27,21 +27,21 @@ type DraftOp = (string | number | null)[];
 
 const LOCAL = Symbol('local');
 const TICK_MS = 33;
-const PEER_COLORS = ['#e8590c', '#2f9e44', '#1971c2', '#9c36b5', '#c2255c', '#0c8599', '#f08c00', '#5f3dc4'];
-const ANIMALS = ['Fuchs', 'Dachs', 'Otter', 'Luchs', 'Biber', 'Falke', 'Igel', 'Wal', 'Uhu', 'Hase', 'Elch', 'Robbe'];
+export const PEER_COLORS = ['#e8590c', '#2f9e44', '#1971c2', '#9c36b5', '#c2255c', '#0c8599', '#f08c00', '#5f3dc4'];
+const ANIMALS = ['Fox', 'Badger', 'Otter', 'Lynx', 'Beaver', 'Falcon', 'Hedgehog', 'Whale', 'Owl', 'Hare', 'Moose', 'Seal'];
 
-function myName() {
+export function myName() {
   try {
     const s = localStorage.getItem('stc-name');
     if (s) return s;
     const n = `${ANIMALS[Math.floor(Math.random() * ANIMALS.length)]} ${Math.floor(Math.random() * 90 + 10)}`;
     localStorage.setItem('stc-name', n);
     return n;
-  } catch { return 'Gast'; }
+  } catch { return 'Guest'; }
 }
 
 /** Lage eines 3D-Objekts (Position, Quaternion, Skalierung) als kompakter String. */
-const trs = (o: Object3D) => [...o.position.toArray(), ...o.quaternion.toArray(), ...o.scale.toArray()].map((v) => Math.round(v * 1e4) / 1e4).join(',');
+const trs = (o: Object3D) => [...o.position.toArray(), ...o.quaternion.toArray(), ...o.scale.toArray()].map((v) => Math.round(v * 1e6) / 1e6).join(',');
 function setTrs(o: Object3D, s: string) {
   const v = s.split(',').map(Number);
   if (v.length !== 10 || v.some((n) => !Number.isFinite(n))) return;
@@ -161,7 +161,7 @@ export class CanvasSync {
       }
       case 'model':
         if (!e.src) { this.uploadModel(e); return null; }
-        return { t: 'model', x: q(e.x), y: q(e.y), w: q(e.w), h: q(e.h), src: e.src, l: e.label, ...this.model3d(e.ms) };
+        return { t: 'model', x: q(e.x), y: q(e.y), w: q(e.w), h: q(e.h), src: e.src, l: e.label, ...(e.studio ? { sp: e.studio } : {}), ...this.model3d(e.ms) };
       default:
         return { t: e.type, x: q(e.x), y: q(e.y), w: q(e.w), h: q(e.h), c: e.color, sw: e.width, f: e.fill, op };
     }
@@ -196,20 +196,37 @@ export class CanvasSync {
       ms.yaw = r.cy / 1000; ms.pitch = (r.cp as number) / 1000; ms.dist = (r.cd as number) / 1000;
       e.viewer.applyCam(ms);
     }
-    if (mine && e.mode === 'gizmo') return;
     const { list, base } = this.objsOf(ms);
     list.forEach((o, i) => {
       const v = r['o' + i] as string | undefined;
       if (v === '-') {
         if (!o.parent) return;
-        if (ms.tc?.object === o) e.deselect3d();
+        if (e.partSelected(o)) e.deselect3d();
         o.removeFromParent();
         return;
       }
       if (!o.parent) ms.root.add(o);
       setTrs(o, v ?? base[i]);
     });
+    e.viewer.refitIfResized(ms); // z. B. „Größe 10 cm“ auf einem anderen Gerät
     ms.dirty = true;
+  }
+
+  /** Ein anderer Client hat das Modell per Prompt geändert (gleiche ID, neue Quelle): Szene neu laden. */
+  private swapModel(el: ModelEl, src: string) {
+    el.src = src;
+    this.loadModel(src).then((ms) => {
+      if (el.src !== src) return; // inzwischen überholt
+      ms.srcHash = src;
+      ms.yaw = el.ms.yaw; ms.pitch = el.ms.pitch; ms.dist = el.ms.dist;
+      if (this.engine.selection().includes(el.id)) this.engine.deselect3d();
+      el.ms = ms;
+      el.glb = undefined;
+      const m = this.yEls.get(String(el.id));
+      if (m) this.apply3d(el, this.readRec(m));
+      this.engine.viewer.applyCam(ms);
+      this.engine.refresh();
+    }).catch((err) => console.warn(err));
   }
 
   /** z-Wert für ein neues Element an Position i – zwischen den Nachbarn mit bekanntem z. */
@@ -268,7 +285,7 @@ export class CanvasSync {
   // ---------- Blobs ----------
   private async putBlob(body: Blob | ArrayBuffer, type: string): Promise<string> {
     const r = await fetch('/blobs', { method: 'POST', headers: { 'Content-Type': type }, body });
-    if (!r.ok) throw new Error(`Blob-Upload fehlgeschlagen: ${r.status}`);
+    if (!r.ok) throw new Error(`Blob upload failed: ${r.status}`);
     return (await r.json()).hash;
   }
 
@@ -296,9 +313,12 @@ export class CanvasSync {
   private async uploadModel(el: ModelEl) {
     if (this.uploading.has(el) || !el.glb || (this.retryAt.get(el) ?? 0) > Date.now()) return;
     this.uploading.add(el);
+    const ms = el.ms;
     try {
-      el.src = await this.putBlob(el.glb, 'model/gltf-binary');
-      el.glb = undefined;
+      const hash = await this.putBlob(el.glb, 'model/gltf-binary');
+      ms.srcHash = hash;
+      // Inzwischen per Undo/Redo eine andere Szene? Dann gehört der Hash nur zu `ms`.
+      if (el.ms === ms) { el.src = hash; el.glb = undefined; }
       this.uploading.delete(el);
       if (this.engine.els.includes(el)) this.flush();
     } catch (err) { this.uploading.delete(el); this.failed(el, err); }
@@ -368,7 +388,12 @@ export class CanvasSync {
         el.label = r.l as string;
         if (el.blob !== r.b) { el.blob = r.b as string; this.uploadedRev.set(el, el.rev); this.paintBlob(el, el.blob, r.iw as number, r.ih as number); }
         break;
-      case 'model': el.label = r.l as string; this.apply3d(el, r); break;
+      case 'model':
+        el.label = r.l as string;
+        el.studio = typeof r.sp === 'string' ? r.sp : undefined;
+        if (typeof r.src === 'string' && r.src !== el.src) this.swapModel(el, r.src);
+        else this.apply3d(el, r);
+        break;
       default: el.color = r.c as string; el.width = r.sw as number; el.fill = r.f as string | null;
     }
   }
@@ -447,7 +472,7 @@ export class CanvasSync {
   private tick() {
     const e = this.engine;
     // laufende Verschiebung/Größenänderung live, aber nur für die betroffenen Elemente
-    if (e.mode === 'move' || e.mode === 'resize' || e.mode === 'orbit' || e.mode === 'gizmo') this.flush(e.selection());
+    if (e.mode === 'move' || e.mode === 'resize' || e.mode === 'orbit') this.flush(e.selection());
 
     let cursor: number[] | 0 | null = null;
     const w = this.ptr ? e.screenToWorld(this.ptr.x, this.ptr.y) : null;

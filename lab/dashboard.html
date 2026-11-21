@@ -1,0 +1,79 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>SketchLab Status</title>
+<style>
+body{font:15px system-ui,sans-serif;background:#fff;color:#111;max-width:980px;margin:28px auto;padding:0 16px}
+h1{font-size:18px;font-weight:600;margin:0 0 4px}h2{font-size:14px;font-weight:600;margin:28px 0 10px;color:#444}
+.eta{display:flex;gap:28px;flex-wrap:wrap;margin:16px 0 10px}.eta div{min-width:120px}.eta b{display:block;font-size:26px;font-weight:600}.eta span{color:#888;font-size:13px}
+.bar{height:8px;background:#eee;border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:#111;width:0;transition:width .6s}
+.mut{color:#888;font-size:13px;margin-top:6px}
+.ph{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.ph div{border:1px solid #e5e5e5;border-radius:8px;padding:8px 10px;font-size:13px;flex:1;min-width:140px}
+.ph .run{border-color:#111}.ph .done{color:#888}.ph small{display:block;color:#888}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.card{border:1px solid #eee;border-radius:10px;padding:8px}.card .im{display:flex;gap:4px}.card img{width:33.3%;aspect-ratio:1;object-fit:contain;background:#fafafa;border-radius:4px}
+.card .lb{display:flex;justify-content:space-between;font-size:12px;color:#666;margin-top:6px}.card .lb b{color:#111}
+.cap{display:flex;font-size:11px;color:#999}.cap span{width:33.3%;text-align:center}
+#batch{width:100%;border-radius:8px;border:1px solid #eee;image-rendering:auto}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0 24px}.kv div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee}
+svg{width:100%;height:150px}
+</style>
+<h1>SketchLab · <span id=run>–</span></h1><div class=mut id=state></div>
+<div class=eta>
+ <div><b id=eta>–</b><span>Restzeit</span></div>
+ <div><b id=fin>–</b><span>fertig ca.</span></div>
+ <div><b id=pct>–</b><span>Fortschritt gesamt</span></div>
+ <div><b id=ep>–</b><span>Epoche</span></div>
+ <div><b id=best>–</b><span>bestes Val-IoU</span></div>
+</div>
+<div class=bar><i id=bar></i></div><div class=mut id=sub></div>
+<div class=ph id=phases></div>
+
+<div id=gensec hidden><h2>Gerade erzeugte Trainingsskizzen <span class=mut>(aktualisiert ~30 s)</span></h2><img id=gen alt="" style="width:100%;border:1px solid #eee;border-radius:8px"></div>
+
+<h2>Live: was das Modell gerade sieht <span class=mut id=pvinfo></span></h2>
+<div class=grid id=pv><div class=mut>noch keine Vorschau</div></div>
+
+<h2>Aktueller Trainings-Batch</h2>
+<img id=batch alt="" hidden><div class=mut id=nobatch>noch kein Batch</div>
+
+<h2>Verlauf</h2>
+<svg id=ch viewBox="0 0 600 150" preserveAspectRatio=none></svg><div class=mut>Val-IoU (schwarz) · Loss (grau) je Epoche</div>
+<div class=kv id=rows style=margin-top:12px></div>
+<script>
+const $=id=>document.getElementById(id);
+const f=s=>s==null||!isFinite(s)?'–':s>=86400?(s/86400).toFixed(1)+' d':s>=3600?(s/3600).toFixed(1)+' h':s>=60?Math.round(s/60)+' min':Math.round(s)+' s';
+const clock=t=>{const d=new Date(t*1000),n=new Date();return (d.toDateString()!==n.toDateString()?d.toLocaleDateString('de-DE',{weekday:'short'})+' ':'')+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})};
+async function get(u){const r=await fetch(u+'?'+Date.now());if(!r.ok)throw 0;return r.json()}
+async function tick(){
+ let pl=null;try{pl=await get('pipeline.json');if(Date.now()/1000-pl.updated>90||pl.phases.every(x=>x.state==='done'))pl=null}catch(e){}
+ let j={};try{j=await get('status.json')}catch(e){}
+ try{const now=Date.now()/1000;
+  const trainActive=!pl||pl.train_run;            // alter Lauf (base) nur zeigen, wenn keine Pipeline aktiv
+  if(!trainActive)j={};
+  let eta=j.eta_s;if(eta==null&&j.step&&j.total&&j.started)eta=(now-j.started)/j.step*(j.total-j.step);
+  const ph=pl?pl.phases:(j.phases||[]);let rest=0,frac=null,unknown=false;
+  if(ph.length){const w=ph.map(p=>p.weight||1),W=w.reduce((a,b)=>a+b,0);frac=0;let runMax=0;ph.forEach((p,i)=>{const pr=p.state==='done'?1:(p.progress||0);frac+=w[i]/W*pr;if(p.state==='done')return;if(p.eta_s==null){unknown=true;return}if(p.state==='run')runMax=Math.max(runMax,p.eta_s);else rest+=p.eta_s});rest+=runMax}
+  const total=ph.length?rest:eta, p=ph.length?frac:(j.total?j.step/j.total:0);
+  const cur=ph.find(x=>x.state==='run');
+  $('run').textContent=pl?pl.name:(j.run||'–');
+  $('state').textContent=pl?('läuft: '+(cur?cur.name:'wartet')+' · aktualisiert vor '+f(now-pl.updated)):((j.state||'')+' · zuletzt aktualisiert vor '+f(now-j.updated));
+  const done=!pl&&j.state==='done';
+  $('eta').textContent=done?'fertig':(f(total)+(unknown?' +':''));$('fin').textContent=done?'✓':total!=null?clock(now+total)+(unknown?' +':''):'–';
+  $('pct').textContent=(p*100).toFixed(1)+' %';$('bar').style.width=(p*100)+'%';
+  $('ep').textContent=(j.epoch??'–')+' / '+(j.epochs??'–');$('best').textContent=j.best_val_iou?.toFixed(3)??(j.hist?.length?Math.max(...j.hist.map(h=>h.iou||0)).toFixed(3):'–');
+  $('sub').textContent=j.total?('Training: Schritt '+j.step+' / '+j.total+' · Rest Training '+f(eta)+(j.lr?' · lr '+j.lr.toExponential(1):'')+(j.it_s?' · '+j.it_s.toFixed(1)+' it/s':'')):(unknown?'„+“: Trainingsdauer steht erst fest, wenn das Training gestartet ist':'');
+  $('phases').innerHTML=ph.map(x=>`<div class=${x.state==='done'?'done':x.state==='run'?'run':''}>${x.state==='done'?'✓ ':x.state==='run'?'▶ ':''}${x.name}<small>${x.state==='done'?'erledigt':x.state==='run'?((x.progress||0)*100).toFixed(0)+' % · Rest '+f(x.eta_s):'wartet'}</small>${x.detail?`<small>${x.detail}</small>`:''}</div>`).join('');
+  const h=j.hist||[],l=h[h.length-1]||{},R=(k,v)=>`<div><span>${k}</span><b>${v}</b></div>`;
+  $('rows').innerHTML=R('Loss',j.loss?.toFixed(3)??'–')+R('Val-IoU',l.iou?.toFixed(3)??'–')+Object.entries(l).filter(([k])=>k.startsWith('iou_')).map(([k,v])=>R('Val-'+k,v==null?'–':(+v).toFixed(3))).join('')+(j.test?R('Test-IoU',(+j.test.iou).toFixed(3)):'');
+  const d=(k,mx)=>h.map((e,i)=>(i/(Math.max(h.length-1,1))*600).toFixed(0)+','+(150-(e[k]||0)/mx*140).toFixed(0)).join(' ');
+  const mxl=Math.max(...h.map(e=>e.loss||0),.01);$('ch').innerHTML=`<polyline fill=none stroke=#bbb stroke-width=2 points="${d('loss',mxl)}"/><polyline fill=none stroke=#111 stroke-width=2 points="${d('iou',1)}"/>`;
+  window._pl=pl;
+ }catch(e){$('state').textContent='noch keine Daten'}
+ if(window._pl){const g=$('gen'),gi=new Image();gi.onload=()=>{g.src=gi.src;$('gensec').hidden=false};gi.src='gen.png?'+Date.now()}else $('gensec').hidden=true;
+ try{if(window._pl&&!window._pl.train_run){$('pv').innerHTML='<div class=mut>Training startet nach der Datenvorbereitung</div>';$('pvinfo').textContent='';throw 0}const pv=await get('preview/preview.json');const q='?'+Math.round(pv.updated);
+  $('pvinfo').textContent='· Epoche '+pv.epoch+', Schritt '+pv.step+' · vor '+f(Date.now()/1000-pv.updated);
+  $('pv').innerHTML=pv.items.map(it=>`<div class=card><div class=im><img src="preview/${it.sketch}${q}"><img src="preview/${it.pred}${q}">${it.gt?`<img src="preview/${it.gt}${q}">`:''}</div><div class=cap><span>Skizze</span><span>Vorhersage</span>${it.gt?'<span>Ziel</span>':''}</div><div class=lb><span>${it.name}</span>${it.iou!=null?`<span>IoU <b>${it.iou.toFixed(2)}</b></span>`:''}</div></div>`).join('');
+ }catch(e){}
+ if(window._pl&&!window._pl.train_run){$('batch').hidden=true;$('nobatch').hidden=false;$('nobatch').textContent='noch kein Training';}else{
+ const b=$('batch'),im=new Image();im.onload=()=>{b.src=im.src;b.hidden=false;$('nobatch').hidden=true};im.src='preview/batch.png?'+Date.now();}
+}
+tick();setInterval(tick,3000)
+</script>

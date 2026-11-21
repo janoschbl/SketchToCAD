@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Skizze zu TRELLIS</title>
+    <style>
+      :root { color-scheme: light; --line: #e6e6e6; --muted: #777; --accent: #ff7a00; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #fff; color: #111; font: 15px/1.4 system-ui, -apple-system, sans-serif; }
+      main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+      h1 { font-size: 18px; margin: 0 0 4px; font-weight: 650; }
+      .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+      .layout { display: grid; grid-template-columns: 260px minmax(320px, 1fr) minmax(320px, 1.2fr); gap: 16px; align-items: start; }
+      @media (max-width: 1100px) { .layout { grid-template-columns: 1fr 1fr; } .classes { grid-column: 1 / -1; } }
+      @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+      .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+      .card h2 { font-size: 12px; font-weight: 600; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+      input[type=search], input[type=text], input[type=number] { font: inherit; width: 100%; min-height: 38px; border: 1px solid #ddd; border-radius: 8px; padding: 0 10px; }
+      #classlist { max-height: 70vh; overflow: auto; margin-top: 8px; border: 1px solid #eee; border-radius: 8px; }
+      @media (max-width: 1100px) { #classlist { max-height: 220px; } }
+      .ph { position: sticky; top: 0; background: #fafafa; font-size: 12px; font-weight: 600; color: var(--muted); padding: 5px 10px; border-bottom: 1px solid #eee; }
+      .it { display: flex; gap: 8px; padding: 5px 10px; cursor: pointer; font-size: 14px; }
+      .it:hover { background: #f6f6f6; }
+      .it.on { background: #fff1e0; box-shadow: inset 3px 0 var(--accent); }
+      .it span { flex: 1; } .it small { color: #aaa; font-variant-numeric: tabular-nums; }
+      .sq { position: relative; width: 100%; aspect-ratio: 1; border-radius: 8px; border: 1px solid #eee; overflow: hidden; background: #fff; }
+      .sq canvas, .sq img, .sq video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; }
+      #draw { touch-action: none; cursor: crosshair; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+      .params { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; }
+      .params label { font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+      button { font: inherit; padding: 8px 12px; min-height: 40px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #111; cursor: pointer; }
+      button:hover { background: #f6f6f6; }
+      button.primary { background: #111; color: #fff; border-color: #111; }
+      button.primary:disabled { background: #999; border-color: #999; cursor: wait; }
+      .stat { margin-top: 8px; color: var(--muted); font-size: 13px; min-height: 20px; }
+      .err { color: #b00020; }
+      .imgs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .imgs .sq { cursor: pointer; }
+      .imgs .sq.on { outline: 3px solid var(--accent); outline-offset: -3px; }
+      .three { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+      .three .cap { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+      #viewer { aspect-ratio: 1; width: 100%; border-radius: 8px; border: 1px solid #eee; background: #f4f4f4; position: relative; overflow: hidden; }
+      #viewer canvas { width: 100%; height: 100%; display: block; }
+      .rate { display: flex; gap: 4px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+      .rate button { min-height: 30px; padding: 2px 9px; }
+      .rate button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .empty { display: grid; place-items: center; color: #bbb; font-size: 13px; text-align: center; padding: 12px; }
+      .hist { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+      .hist figure { margin: 0; flex: 0 0 96px; cursor: pointer; }
+      .hist img { width: 96px; height: 96px; object-fit: contain; border: 1px solid #eee; border-radius: 6px; background: #fff; }
+      .hist figcaption { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .sw { width: 34px; height: 34px; min-height: 34px; padding: 0; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #ccc; }
+      .sw.on { box-shadow: 0 0 0 3px #111; }
+      .aux { display: flex; gap: 8px; margin-top: 8px; }
+      .aux figure { margin: 0; flex: 1; } .aux img { width: 100%; border: 1px solid #eee; border-radius: 6px; }
+      .aux figcaption { font-size: 11px; color: var(--muted); }
+      .editbox { margin-top: 10px; border: 2px solid var(--accent); border-radius: 10px; padding: 10px; background: #fffaf4; }
+      .editbox h3 { margin: 0 0 6px; font-size: 13px; font-weight: 650; }
+      .editbox select { font: inherit; min-height: 36px; border: 1px solid #ddd; border-radius: 8px; padding: 0 6px; background: #fff; max-width: 100%; }
+      .plan { font-size: 13px; padding: 6px 8px; border-radius: 6px; background: #fff; border: 1px dashed #f0c08a; min-height: 32px; }
+      .plan b { color: var(--accent); }
+      .parts { margin-top: 10px; border: 1px solid #eee; border-radius: 8px; }
+      .parts .pr { display: flex; align-items: center; gap: 8px; padding: 5px 8px; font-size: 13px; border-bottom: 1px solid #f3f3f3; }
+      .parts .pr:last-child { border-bottom: 0; }
+      .parts .dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
+      .parts .nm { flex: 1; }
+      .parts small { color: #999; font-variant-numeric: tabular-nums; }
+      .parts button { min-height: 28px; padding: 2px 8px; font-size: 12px; }
+      .st { font-size: 11px; padding: 1px 6px; border-radius: 99px; }
+      .st.neu { background: #e3f6e8; color: #1a7f37; } .st.geändert { background: #fff1e0; color: #b35900; } .st.unverändert { background: #f0f0f0; color: #666; }
+      .badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 99px; background: #f0f0f0; color: #555; }
+    </style>
+  </head>
+  <body>
+    <div id="jserr" style="display:none;background:#b00020;color:#fff;padding:8px 16px;font-size:13px"></div>
+    <script>
+      // Fehler sichtbar machen (z. B. wenn ein Modul nicht lädt)
+      function showErr(m) { var e = document.getElementById('jserr'); e.style.display = 'block'; e.textContent = 'Fehler: ' + m + ' – Seite mit Strg+Umschalt+R neu laden.'; }
+      addEventListener('error', function (e) { if (e.message) showErr(e.message); else if (e.target && e.target.tagName === 'SCRIPT') showErr('Skript konnte nicht geladen werden: ' + e.target.src); }, true);
+      addEventListener('unhandledrejection', function (e) { showErr(String(e.reason && e.reason.message || e.reason)); });
+    </script>
+    <main>
+      <h1>Skizze → Bild → 3D <span class="badge" id="tok"></span></h1>
+      <p class="sub">Zero-Shot-Test ohne eigenes Training. <span id="backend">…</span> Jeder Lauf wird unter <code>lab/trellis_lab/runs/</code> gespeichert.</p>
+      <div class="layout">
+        <section class="card classes">
+          <h2>Tier-Klassen in Objaverse</h2>
+          <input type="search" id="q" placeholder="Suchen … (z. B. cat, dragon)" />
+          <div id="classlist"></div>
+        </section>
+
+        <section class="card">
+          <h2>Skizze</h2>
+          <div class="sq"><canvas id="draw" width="512" height="512"></canvas></div>
+          <div class="row">
+            <input type="text" id="subject" placeholder="Was ist es? (aus der Liste wählen oder tippen)" style="flex:1;min-width:160px" />
+          </div>
+          <div class="row" id="palette"></div>
+          <div class="row">
+            <span class="lab" style="font-size:12px;color:var(--muted)">Pinsel</span>
+            <input type="range" id="brush" min="2" max="40" value="6" style="flex:1;min-width:100px" />
+            <span id="brushv" style="font-size:12px;color:var(--muted);width:40px">6 px</span>
+          </div>
+          <div class="row">
+            <button id="undo">Rückgängig</button><button id="clear">Löschen</button>
+            <button id="go" class="primary" style="margin-left:auto">Bilder erzeugen</button>
+          </div>
+          <p class="stat" style="margin-top:6px">Schwarz = Form-Linien. Farben = Farbe des Tiers. Große Pinsel für Flächen, z. B. Fell oder Bauch. Die Farben gehen ins Bild und damit ins 3D-Modell.</p>
+          <div class="params">
+            <label>Seed<input type="number" id="seed" value="42" /></label>
+            <label>Linientreue<input type="number" id="scale" value="0.5" step="0.1" min="0" max="2" /></label>
+            <label>Farbfreiheit<input type="number" id="strength" value="0.85" step="0.05" min="0.3" max="1" title="niedrig = Farben der Skizze genauer, hoch = Modell darf mehr ändern" /></label>
+            <label>Schritte<input type="number" id="steps" value="20" min="4" max="40" /></label>
+            <label>Anzahl<input type="number" id="n" value="2" min="1" max="4" /></label>
+          </div>
+          <div class="editbox" id="editbox" hidden>
+            <h3>Erweitern · Version <span id="ver">0</span> · <span id="newcount">0 neue Striche</span></h3>
+            <div class="plan" id="plantext">Zeichne etwas dazu. Neue Striche leuchten orange; erkannt wird, zu welchem Teil sie gehören.</div>
+            <div class="row"><input type="text" id="parttext" placeholder="Was soll es werden? (englisch, z. B. red fin, wings, curly tail)" style="flex:1;min-width:160px" /></div>
+            <div class="row">
+              <select id="action" title="Was soll passieren?"><option value="auto">Automatisch erkennen</option><option value="surface">Oberfläche des Segments (Farbe/Muster)</option><option value="replace">Segment neu generieren und ersetzen</option><option value="add">Neues Teil anbauen</option><option value="mixed">Oberfläche + herausragenden Teil anbauen</option></select>
+              <select id="target" title="Segment (bei „Neues Teil“: woran es hängt)"></select>
+              <select id="method" title="Rechenweg"><option value="auto">Methode: KI (Bild + 3D)</option><option value="fast">Schnell: Striche aufblasen (ohne KI)</option></select>
+            </div>
+            <div class="row">
+              <label style="font-size:13px"><input type="checkbox" id="underlay" checked /> Bild unterlegen</label>
+              <label style="font-size:13px"><input type="checkbox" id="showsegs" /> Segmente zeigen</label>
+              <button id="undoEdit" title="Letzte Änderung am Modell zurücknehmen">Änderung zurück</button>
+              <button id="restart" title="Projekt verlassen, neue Skizze">Neu beginnen</button>
+              <button id="apply" class="primary" style="margin-left:auto">Anwenden</button>
+            </div>
+            <div class="stat" id="s3"></div>
+          </div>
+          <div class="aux" id="aux"></div>
+          <div class="stat" id="s1">Wähle links ein Tier, zeichne es und klicke „Bilder erzeugen“.</div>
+        </section>
+
+        <section class="card">
+          <h2>2D-Bild (Klick wählt das Bild fürs 3D-Modell)</h2>
+          <div class="imgs" id="imgs"><div class="sq empty">noch kein Bild</div></div>
+          <div class="rate" id="rate2d"></div>
+          <div class="row">
+            <label style="font-size:12px;color:var(--muted)">3D-Seed <input type="number" id="tseed" value="0" style="width:90px;min-height:32px" /></label>
+            <button id="go3d" class="primary" style="margin-left:auto" disabled>3D erzeugen</button>
+          </div>
+          <div class="stat" id="s2"></div>
+          <div class="three">
+            <div><div class="cap" id="precap">Eingabe fürs 3D-Modell (Hintergrund entfernt)</div><div class="sq" id="pre"><div class="empty" style="position:absolute;inset:0">–</div></div></div>
+            <div><div class="cap">3D-Modell (ziehen = drehen, Rad = Zoom)</div><div id="viewer"></div></div>
+          </div>
+          <div class="row" style="margin-top:6px"><button id="frontview" title="Kamera wie in der Skizze">Ansicht wie Skizze</button><span class="stat" style="margin:0">Teile werden einzeln geladen; nur geänderte Teile kommen neu.</span></div>
+          <div class="parts" id="parts" hidden></div>
+          <div class="rate" id="rate3d"></div>
+          <div class="row" id="dl"></div>
+        </section>
+      </div>
+
+      <section class="card" style="margin-top:16px">
+        <h2>Letzte Läufe</h2>
+        <div class="hist" id="hist"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/trellis-lab.ts"></script>
+  </body>
+</html>
