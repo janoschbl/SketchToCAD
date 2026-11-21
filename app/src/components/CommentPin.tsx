@@ -34,7 +34,7 @@ export default function CommentPin({ c, x, y, open, onOpen, onClose, onSave, onD
         <button
           type="button"
           onClick={() => (open ? commit() : onOpen())}
-          aria-label={`Kommentar ${c.n}`}
+          aria-label={`Comment ${c.n}`}
           className={`flex size-7 shrink-0 items-center justify-center rounded-full rounded-bl-[4px] border-2 border-white text-[12px] font-semibold text-white shadow-[0_2px_8px_rgba(20,30,80,0.3)] transition-transform duration-150 hover:scale-110 ${sent ? 'bg-green' : 'bg-bui-accent'}`}
           style={{ animation: 'pop-in 200ms cubic-bezier(0.23,1,0.32,1) both', transformOrigin: 'bottom left' }}
         >
@@ -56,18 +56,18 @@ export default function CommentPin({ c, x, y, open, onOpen, onClose, onSave, onD
                 else if (e.key === 'Escape') { e.preventDefault(); if (c.status === 'draft' && !c.text) onDelete(); else onClose(); }
               }}
               onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) commit(); }}
-              placeholder="Kommentar hinzufügen…"
+              placeholder="Add a comment…"
               className="min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-white/45"
             />
             {c.status !== 'draft' && (
-              <button type="button" aria-label="Kommentar löschen" onClick={onDelete} className="flex size-8 shrink-0 items-center justify-center rounded-full text-white/55 transition-colors hover:bg-white/10 hover:text-white">
+              <button type="button" aria-label="Delete comment" onClick={onDelete} className="flex size-8 shrink-0 items-center justify-center rounded-full text-white/55 transition-colors hover:bg-white/10 hover:text-white">
                 <IconTrash size={15} stroke={1.8} />
               </button>
             )}
             <button
               type="button"
-              aria-label="Diesen Kommentar einzeln als Prompt senden"
-              title="Einzeln senden (Strg+Enter)"
+              aria-label="Send this comment as its own prompt"
+              title="Send alone (Ctrl+Enter)"
               disabled={!text.trim()}
               onClick={() => onSend(text.trim())}
               className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white text-[#1b1b1f] transition-[opacity,transform] duration-150 enabled:active:scale-[0.94] disabled:opacity-25"

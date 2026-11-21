@@ -117,8 +117,8 @@ export default function PromptBar({
   const query = plusOpen ? '' : token?.query ?? '';
 
   const sources: Row[] = [
-    { key: 'attach', name: 'Bild hochladen', desc: 'Foto oder Skizze vom Rechner', attach: true },
-    ...mentionables.map((m) => ({ key: `el-${m.id}`, id: m.id, name: m.label, desc: 'auf dem Canvas', elType: m.elType })),
+    { key: 'attach', name: 'Upload image', desc: 'Photo or sketch from your computer', attach: true },
+    ...mentionables.map((m) => ({ key: `el-${m.id}`, id: m.id, name: m.label, desc: 'on the canvas', elType: m.elType })),
   ];
   const rows: Row[] = menu === 'at' ? sources.filter((s) => s.name.toLowerCase().includes(query)) : [];
 
@@ -272,9 +272,9 @@ export default function PromptBar({
                 <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">{row.desc}</span>
               </button>
             ))}
-            {rows.length === 0 && <div className="flex h-9 items-center px-2 text-[12px] text-ink-3">Keine Treffer für „{query}“</div>}
+            {rows.length === 0 && <div className="flex h-9 items-center px-2 text-[12px] text-ink-3">No matches for “{query}”</div>}
             <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">
-              Canvas-Elemente referenzieren oder Bild hochladen
+              Reference canvas elements or upload an image
             </div>
           </div>
         )}
@@ -334,7 +334,7 @@ export default function PromptBar({
                 <span className="truncate">{c.label}</span>
                 <button
                   type="button"
-                  aria-label={`${c.label} entfernen`}
+                  aria-label={`Remove ${c.label}`}
                   onClick={() => onRemoveContext(c.key)}
                   className="-my-1 flex size-5 shrink-0 items-center justify-center rounded-[5px] text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink"
                 >
@@ -347,7 +347,7 @@ export default function PromptBar({
           <div ref={controlsRef} className={`grid items-end gap-x-1 gap-y-1.5 ${expanded ? 'grid-cols-[28px_auto_minmax(0,1fr)_28px_28px]' : 'grid-cols-[28px_minmax(0,1fr)_auto_28px_28px]'}`}>
             <button
               type="button"
-              aria-label="Kontext hinzufügen"
+              aria-label="Add context"
               aria-expanded={plusOpen}
               onClick={() => { setModelOpen(false); setPlusOpen((c) => !c); inputRef.current?.focus(); }}
               className={`flex size-7 shrink-0 items-center justify-center justify-self-start rounded-[8px] text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[0.94] ${plusOpen ? 'bg-hover text-ink' : ''} ${expanded ? 'col-start-1 row-start-2' : 'col-start-1 row-start-1'}`}
@@ -377,7 +377,7 @@ export default function PromptBar({
                 if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
               }}
               readOnly={busy}
-              placeholder={busy ? 'Modell wird geändert…' : listening ? 'Ich höre zu…' : answering ? 'Oder antworte hier mit eigenen Worten…' : placeholder ?? 'Beschreibe, was passieren soll…'}
+              placeholder={busy ? 'Updating model…' : listening ? 'Listening…' : answering ? 'Or answer here in your own words…' : placeholder ?? 'Describe what should happen…'}
               aria-label="Prompt"
               className={`min-h-7 w-full min-w-0 resize-none bg-transparent px-1 py-[5px] text-[13px] leading-[18px] text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 ${expanded ? 'col-span-full col-start-1 row-start-1' : 'col-start-2 row-start-1'}`}
             />
@@ -386,7 +386,7 @@ export default function PromptBar({
               ref={modelRef}
               type="button"
               aria-expanded={modelOpen}
-              aria-label="Modell wählen"
+              aria-label="Choose model"
               onClick={() => { setPlusOpen(false); setModelOpen((c) => !c); }}
               className={`flex h-7 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink ${expanded ? 'col-start-2 row-start-2 justify-self-start' : 'col-start-3 row-start-1'}`}
             >
@@ -396,10 +396,10 @@ export default function PromptBar({
 
             <button
               type="button"
-              aria-label={listening ? 'Diktat stoppen' : 'Diktat starten'}
+              aria-label={listening ? 'Stop dictation' : 'Start dictation'}
               aria-pressed={listening}
               disabled={!SpeechRec}
-              title={SpeechRec ? undefined : 'Spracherkennung wird von diesem Browser nicht unterstützt'}
+              title={SpeechRec ? undefined : 'Speech recognition is not supported in this browser'}
               onClick={() => { if (listening) { recRef.current?.stop(); setListening(false); } else setListening(true); }}
               className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-150 active:scale-[0.94] disabled:opacity-40 ${listening ? 'bg-accent-tint text-accent-ink' : 'text-ink-3 enabled:hover:bg-hover enabled:hover:text-ink'} ${expanded ? 'col-start-4 row-start-2' : 'col-start-4 row-start-1'}`}
             >
@@ -414,7 +414,7 @@ export default function PromptBar({
 
             <button
               type="button"
-              aria-label={busy ? 'Wird verarbeitet' : 'Senden'}
+              aria-label={busy ? 'Working' : 'Send'}
               disabled={!canSend}
               onClick={send}
               className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] ${expanded ? 'col-start-5 row-start-2' : 'col-start-5 row-start-1'}`}

@@ -17,6 +17,9 @@ import {
 import { CanvasSync, type SyncStatus } from '@/sync/CanvasSync';
 import Presence from '@/components/Presence';
 import { generateMesh } from '@/lib/magic';
+import { lazy, Suspense } from 'react';
+
+const Studio = lazy(() => import('@/studio/Studio'));
 
 function roomName() {
   const r = new URLSearchParams(location.search).get('room');
@@ -93,7 +96,7 @@ function TextEditor({ engine, req, color, onDone }: { engine: Engine; req: TextR
         if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); finish(e.currentTarget.value.trim() || null); }
       }}
       onInput={(e) => { const t = e.currentTarget; t.style.height = '0px'; t.style.height = `${t.scrollHeight}px`; }}
-      placeholder={req.note ? 'Notiz…' : 'Text…'}
+      placeholder={req.note ? 'Note…' : 'Text…'}
       className="absolute z-30 resize-none overflow-hidden bg-transparent outline-none placeholder:text-neutral-300"
       style={{
         left: p.x, top: p.y, color, minWidth: 120 * z,
@@ -142,6 +145,7 @@ export default function App() {
   const [textReq, setTextReq] = useState<TextRequest | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [changeTick, bumpChange] = useReducer((x: number) => x + 1, 0);
+  const [studio, setStudio] = useState<{ project?: string; modelId?: number } | null>(() => (new URLSearchParams(location.search).has('studio') ? {} : null));
   const [magicN, setMagicN] = useState(0);
   const [magicBusy, setMagicBusy] = useState<number | null>(null);
   const [magicErr, setMagicErr] = useState<string | null>(null);
@@ -245,7 +249,11 @@ export default function App() {
   }, [engine, tool, color, fill, widthIdx, opacity, pressure, lock]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (!isTyping(e.target) && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'q') setLock((l) => !l); };
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target) || e.ctrlKey || e.metaKey) return;
+      if (e.key.toLowerCase() === 'q') setLock((l) => !l);
+      if (e.key.toLowerCase() === 'k') setStudio((o) => o ?? {});
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -266,7 +274,7 @@ export default function App() {
   const partCtx = part && modelInfos.some((i) => i.id === part.modelId) && !excluded.has('part') ? part : null;
   const context: ContextItem[] = [
     ...selInfos.map((i) => ({ key: `el-${i.id}`, kind: 'element' as const, label: i.label, elType: i.type, thumb: thumbs.get(i.id) })),
-    ...(part && selIds.includes(part.modelId) ? [{ key: 'part', kind: 'part' as const, label: part.names.length === 1 ? `Teil: ${part.names[0]}` : `${part.names.length} Teile: ${part.names.join(', ')}` }] : []),
+    ...(part && selIds.includes(part.modelId) ? [{ key: 'part', kind: 'part' as const, label: part.names.length === 1 ? `Part: ${part.names[0]}` : `${part.names.length} parts: ${part.names.join(', ')}` }] : []),
     ...ctxComments.map((c) => ({ key: `c-${c.id}`, kind: 'comment' as const, label: c.text, n: c.n })),
   ].filter((c) => !excluded.has(c.key));
   // Die Leiste gibt es nur zum Ändern eines ausgewählten 3D-Modells.
@@ -283,14 +291,14 @@ export default function App() {
   /** Ergebnis als kurzer Text für die Agent-Blase (und als Toast, falls der Chat nicht sichtbar ist). */
   const summary = (res: PromptResult): string => {
     const list = (xs: string[]) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} +${xs.length - 4}` : xs.join(', '));
-    const stats = [res.stats, promptCfg.mode === 'mock' && 'Testmodus ohne KI'].filter(Boolean).join(' · ');
-    const errs = res.errors.length ? ` ${res.errors.length} Schritt(e) fehlgeschlagen: ${res.errors.join(' · ')}` : '';
+    const stats = [res.stats, promptCfg.mode === 'mock' && 'test mode without AI'].filter(Boolean).join(' · ');
+    const errs = res.errors.length ? ` ${res.errors.length} step(s) failed: ${res.errors.join(' · ')}` : '';
     if (res.glb) {
       const n = res.changed.length;
-      const head = res.text || `Erledigt – ${n} ${n === 1 ? 'Teil' : 'Teile'} geändert: ${list(res.changed)}.`;
+      const head = res.text || `Done – ${n} ${n === 1 ? 'part' : 'parts'} changed: ${list(res.changed)}.`;
       return `${head}${errs}${stats ? ` (${stats})` : ''}`;
     }
-    return res.text || (res.errors.length ? `Das ging nicht: ${res.errors.join(' · ')}` : 'Ich habe keine passende Änderung gefunden. Beschreib bitte genauer, was sich ändern soll.');
+    return res.text || (res.errors.length ? `That didn’t work: ${res.errors.join(' · ')}` : 'I couldn’t find a matching change. Please describe more precisely what should change.');
   };
 
   const pushChat = (modelId: number, items: ChatItem[], pending?: Pending | null) => setChat((c) => {
@@ -327,28 +335,28 @@ export default function App() {
       let res = a.session ? await continueEdit(a.session, args) : null;
       if (!res) {
         const glb = await engine.exportModel(targetId);
-        if (!glb) throw new PromptError('Das Modell ist nicht mehr auf dem Canvas.');
+        if (!glb) throw new PromptError('The model is no longer on the canvas.');
         res = await editModel({ ...args, glb });
       }
       if (res.glb && (await engine.replaceModel(targetId, res.glb)) === null) {
-        toast('Modell nicht mehr vorhanden', 'Es wurde gelöscht, während die KI daran gearbeitet hat.');
+        toast('Model no longer exists', 'It was deleted while the AI was working on it.');
         return false;
       }
       if (res.question) {
         pushChat(targetId, [{ id: uid(), role: 'agent', text: res.question.frage }], { ...a, session: res.session, frage: res.question });
-        if (!shown()) toast('Rückfrage', `${info?.label ?? 'Modell'}: ${res.question.frage}`, 9000);
+        if (!shown()) toast('Question', `${info?.label ?? 'Model'}: ${res.question.frage}`, 9000);
       } else {
         const text = summary(res);
         pushChat(targetId, [{ id: uid(), role: 'agent', text, tone: res.glb ? 'ok' : res.errors.length ? 'error' : 'info' }], null);
         endPick(targetId);
-        if (!shown()) toast(res.glb ? 'Modell geändert' : 'Nichts geändert', text, 9000);
+        if (!shown()) toast(res.glb ? 'Model updated' : 'Nothing changed', text, 9000);
       }
       if (res.glb) markSent(a.commentIds);
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       pushChat(targetId, [{ id: uid(), role: 'agent', text: msg, tone: 'error' }]);
-      if (!shown()) toast('Prompt fehlgeschlagen', msg, 9000);
+      if (!shown()) toast('Prompt failed', msg, 9000);
       return false;
     } finally {
       promptBusy.current = false;
@@ -400,15 +408,15 @@ export default function App() {
     // Offene Rückfrage an diesem Modell: der Text ist die Antwort.
     if (chatVisible && chat?.pending) { if (text) answer({ rolle: 'nutzer', text }); return !!text; }
     if (modelInfos.length !== 1) {
-      toast(modelInfos.length ? 'Mehrere Modelle ausgewählt' : 'Kein Modell ausgewählt',
-        modelInfos.length ? 'Entferne die Chips der Modelle, die nicht geändert werden sollen, oder wähle nur eins aus.' : 'Wähle ein 3D-Modell aus, das geändert werden soll.');
+      toast(modelInfos.length ? 'Several models selected' : 'No model selected',
+        modelInfos.length ? 'Remove the chips of models that should stay unchanged, or select just one.' : 'Select a 3D model to change.');
       return false;
     }
     const targetId = modelInfos[0].id;
     const cs = ctxComments.filter((c) => !excluded.has(`c-${c.id}`));
     const onTarget = cs.filter((c) => c.anchor.elId === targetId);
     const elsewhere = cs.filter((c) => c.anchor.elId !== targetId);
-    const auftrag = [text, ...elsewhere.map((c) => `Kommentar ${c.n}: ${c.text}`)].filter(Boolean).join('\n') || 'Setze die Kommentare an den Pins um.';
+    const auftrag = [text, ...elsewhere.map((c) => `Comment ${c.n}: ${c.text}`)].filter(Boolean).join('\n') || 'Apply the comments at the pins.';
     const shownText = [text, ...cs.map((c) => `Pin ${c.n}: ${c.text}`)].filter(Boolean).join('\n');
     pushChat(targetId, [{ id: uid(), role: 'user', text: shownText }], null);
     endPick(targetId);
@@ -426,7 +434,7 @@ export default function App() {
     if (!engine) return;
     const targetId = c.anchor.elId;
     if (targetId === null || engine.info(targetId)?.type !== 'model') {
-      toast('Kein 3D-Modell', 'Kommentare lassen sich nur an einem 3D-Modell ausführen. Wähle ein Modell und schick den Kommentar über die Prompt-Leiste mit.');
+      toast('No 3D model', 'Comments can only be run on a 3D model. Select a model and send the comment via the prompt bar.');
       return;
     }
     engine.select([targetId]);
@@ -490,8 +498,8 @@ export default function App() {
                     onMarkup={() => { if (tool === 'pen') setTool('select'); else { setColor(MARKUP_COLOR); setTool('pen'); } }}
                     onComment={() => setTool(tool === 'comment' ? 'select' : 'comment')}
                     onErase={() => setTool(tool === 'imgErase' ? 'select' : 'imgErase')}
-                    onRemoveBg={() => { if (!engine.removeBg(one.id)) toast('Kein Hintergrund gefunden', 'Am Bildrand gibt es keine einheitliche Hintergrundfarbe.'); }}
-                    onResize={(f) => engine.resizeEl(one.id, f)}
+                    onRemoveBg={() => { if (!engine.removeBg(one.id)) toast('No background found', 'The image edge has no uniform background color.'); }}
+                    onStudio={one.type === 'model' && engine.modelStudio(one.id) ? () => setStudio({ project: engine.modelStudio(one.id)!, modelId: one.id }) : undefined}
                     onDelete={() => engine.deleteSelection()}
                     parts={part && part.modelId === one.id ? { count: part.names.length, logos: part.logos } : null}
                     multi={multiPart}
@@ -500,7 +508,7 @@ export default function App() {
                     onDeleteParts={() => engine.deleteSelectedParts()}
                     onClearParts={() => engine.deselect3d()}
                     dims={oneDims}
-                    onSetSize={(axis, meters) => { if (!engine.setModelSize(one.id, axis, meters)) toast('Größe nicht gesetzt', 'Das Modell hat auf dieser Achse keine Ausdehnung.'); }}
+                    onSetSize={(axis, meters) => { if (!engine.setModelSize(one.id, axis, meters)) toast('Size not set', 'The model has no extent on this axis.'); }}
                   />
                 )}
                 {textReq && (
@@ -521,13 +529,14 @@ export default function App() {
         onModel={() => engine?.addModel()}
         onModelFile={() => modelFileRef.current?.click()}
         onUndo={() => engine?.undo()} onRedo={() => engine?.redo()}
+        onStudio={() => setStudio({})}
       />
 
       {/* Eigenschaften – nur bei Zeichenwerkzeugen */}
       {STYLE_TOOLS.includes(tool) && (
         <div className="absolute top-20 left-4 grid w-56 gap-4 rounded-[14px] bg-surface p-4 shadow-raised" style={{ animation: 'pop-in 160ms cubic-bezier(0.23,1,0.32,1) both', transformOrigin: 'top left' }}>
           <div className="grid gap-2">
-            <Label className="text-xs font-normal text-ink-2">Strich</Label>
+            <Label className="text-xs font-normal text-ink-2">Stroke</Label>
             <div className="flex items-center gap-1.5">
               {COLORS.map((c) => <Swatch key={c} color={c} on={color === c} onClick={() => setColor(c)} />)}
               <label className="relative ml-auto size-7 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.07)]" style={{ background: color }}>
@@ -537,7 +546,7 @@ export default function App() {
           </div>
           {tool !== 'pen' && tool !== 'arrow' && tool !== 'line' && tool !== 'text' && tool !== 'note' && (
             <div className="grid gap-2">
-              <Label className="text-xs font-normal text-ink-2">Hintergrund</Label>
+              <Label className="text-xs font-normal text-ink-2">Background</Label>
               <div className="flex items-center gap-1.5">
                 <Swatch none on={fill === null} onClick={() => setFill(null)} />
                 {BG_COLORS.map((c) => <Swatch key={c} color={c} on={fill === c} onClick={() => setFill(c)} />)}
@@ -546,7 +555,7 @@ export default function App() {
           )}
           {tool !== 'text' && tool !== 'note' && tool !== 'bucket' && (
             <div className="grid gap-2">
-              <Label className="text-xs font-normal text-ink-2">Strichstärke</Label>
+              <Label className="text-xs font-normal text-ink-2">Stroke width</Label>
               <div className="flex gap-2">
                 {WIDTH_VALUES.map((w, i) => (
                   <IconChoice key={w} on={widthIdx === i} onClick={() => setWidthIdx(i)} label={WIDTHS[i]}>
@@ -558,31 +567,31 @@ export default function App() {
           )}
           {tool === 'pen' && (
             <div className="grid gap-2">
-              <Label className="text-xs font-normal text-ink-2">Druck</Label>
+              <Label className="text-xs font-normal text-ink-2">Pressure</Label>
               <div className="flex gap-2">
-                <IconChoice on={pressure === 'on'} onClick={() => setPressure('on')} label="Druck">
+                <IconChoice on={pressure === 'on'} onClick={() => setPressure('on')} label="Pressure">
                   <svg viewBox="0 0 20 10" className="w-5"><path d="M1 5 Q4 0 7 5 T13 5 T19 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
                 </IconChoice>
-                <IconChoice on={pressure === 'off'} onClick={() => setPressure('off')} label="Konstant">
+                <IconChoice on={pressure === 'off'} onClick={() => setPressure('off')} label="Constant">
                   <svg viewBox="0 0 20 10" className="w-5"><path d="M1 5 Q4 0 7 5 T13 5 T19 5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
                 </IconChoice>
               </div>
             </div>
           )}
           <div className="grid gap-2">
-            <Label className="text-xs font-normal text-ink-2">Deckkraft</Label>
-            <Slider value={[opacity]} min={0} max={100} onValueChange={(v) => setOpacity(v[0])} aria-label="Deckkraft" />
+            <Label className="text-xs font-normal text-ink-2">Opacity</Label>
+            <Slider value={[opacity]} min={0} max={100} onValueChange={(v) => setOpacity(v[0])} aria-label="Opacity" />
           </div>
         </div>
       )}
 
       {/* Zoom */}
       <div className="absolute bottom-4 left-4 flex items-center gap-0.5 rounded-[12px] bg-surface p-1 shadow-raised">
-        <button className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-hover" onClick={() => engine?.setZoom(engine.cam.z / 1.25)} aria-label="Herauszoomen"><IconZoomOut size={17} stroke={1.7} /></button>
+        <button className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-hover" onClick={() => engine?.setZoom(engine.cam.z / 1.25)} aria-label="Zoom out"><IconZoomOut size={17} stroke={1.7} /></button>
         <span className="w-12 text-center text-[12.5px] text-ink-2 tabular-nums">{Math.round(stats.zoom * 100)}%</span>
-        <button className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-hover" onClick={() => engine?.setZoom(engine.cam.z * 1.25)} aria-label="Hineinzoomen"><IconZoomIn size={17} stroke={1.7} /></button>
-        <WarmTooltip content="Alles zeigen" side="top">
-          <button className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-hover" onClick={() => engine?.fit()} aria-label="Alles zeigen"><IconMaximize size={17} stroke={1.7} /></button>
+        <button className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-hover" onClick={() => engine?.setZoom(engine.cam.z * 1.25)} aria-label="Zoom in"><IconZoomIn size={17} stroke={1.7} /></button>
+        <WarmTooltip content="Show all" side="top">
+          <button className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-hover" onClick={() => engine?.fit()} aria-label="Show all"><IconMaximize size={17} stroke={1.7} /></button>
         </WarmTooltip>
       </div>
 
@@ -621,20 +630,20 @@ export default function App() {
             defaultModel={promptCfg.defaultModel}
             answering={chatVisible && !!chat?.pending}
             onClose={chatVisible && chat?.pending ? cancelQuestion : undefined}
-            placeholder={partCtx ? `Was soll mit ${partCtx.names.length === 1 ? `„${partCtx.names[0]}“` : `den ${partCtx.names.length} Teilen`} passieren?` : 'Was soll am Modell geändert werden? Teil anklicken zum Eingrenzen.'}
+            placeholder={partCtx ? `What should happen to ${partCtx.names.length === 1 ? `“${partCtx.names[0]}”` : `the ${partCtx.names.length} parts`}?` : 'What should change on the model? Click a part to narrow it down.'}
           />
         </div>
       )}
 
       {!showPrompt && (
         <div className="pointer-events-none absolute bottom-5 left-1/2 max-w-[56vw] -translate-x-1/2 text-center text-xs text-neutral-500">
-          {obj3d ? (<><b>Umschalt</b>+Klick weitere Teile · <b>Entf</b> Löschen · <b>Esc</b> abwählen</>)
-            : tool === 'select' && selIds.length ? 'Wähle ein 3D-Modell oder zieh eine GLB-Datei in den Canvas, um es per Prompt zu ändern'
-            : tool === 'select' ? 'Klicken = auswählen · Umschalt = mehrere · Rahmen ziehen = Mehrfachauswahl · Bilder und 3D-Dateien per Drag & Drop'
-            : tool === 'comment' ? 'Auf ein Bild, Modell oder eine Skizze klicken, um einen Kommentar-Pin zu setzen'
-            : tool === 'imgErase' ? 'Über ein Bild malen, um Bereiche zu radieren'
-            : tool === 'magic' ? 'Magic Pen: Objekt skizzieren (am besten in Schrägansicht), dann Enter oder „In 3D umwandeln“'
-            : 'Maus/Pencil zeichnen · Finger pannen/zoomen · Leertaste = pannen · Rad = Zoom'}
+          {obj3d ? (<><b>Shift</b>+click more parts · <b>Del</b> delete · <b>Esc</b> deselect</>)
+            : tool === 'select' && selIds.length ? 'Select a 3D model or drop a GLB file onto the canvas to change it with a prompt'
+            : tool === 'select' ? 'Click = select · Shift = several · drag a frame = multi-select · drag & drop images and 3D files'
+            : tool === 'comment' ? 'Click an image, model or sketch to place a comment pin'
+            : tool === 'imgErase' ? 'Paint over an image to erase areas'
+            : tool === 'magic' ? 'Magic Pen: sketch an object (ideally at an angle), then Enter or “Convert to 3D”'
+            : 'Mouse/Pencil draws · fingers pan/zoom · Space = pan · wheel = zoom'}
         </div>
       )}
 
@@ -646,19 +655,41 @@ export default function App() {
           ) : magicErr ? (
             <span className="max-w-[320px] text-[#c92a2a]">{magicErr}</span>
           ) : magicN ? (
-            <span>{magicN} {magicN === 1 ? 'Strich' : 'Striche'}</span>
+            <span>{magicN} {magicN === 1 ? 'stroke' : 'strokes'}</span>
           ) : (
-            <span>Skizziere ein Objekt</span>
+            <span>Sketch an object</span>
           )}
           {magicBusy === null && magicN > 0 && (
             <>
               <button className="rounded-[10px] px-2.5 py-1.5 text-ink-2 hover:bg-hover" onClick={() => engine?.discardMagic()}>Verwerfen</button>
               <button className="rounded-[10px] bg-[#7c5cff] px-3 py-1.5 font-medium text-white transition-transform active:scale-[0.97]" onClick={runMagic}>
-                {magicErr ? 'Erneut versuchen' : 'In 3D umwandeln'}
+                {magicErr ? 'Try again' : 'Convert to 3D'}
               </button>
             </>
           )}
         </div>
+      )}
+
+      {studio && (
+        <Suspense fallback={null}>
+          <Studio
+            key={studio.project ?? 'neu'}
+            projectId={studio.project}
+            sync={sync}
+            onClose={() => setStudio(null)}
+            onPlace={async (f, pid) => {
+              if (!engine) return;
+              // Aus dem Canvas geöffnet → dasselbe Modell ersetzen (Lage, Größe, Kommentare bleiben); sonst neu einfügen
+              const back = studio.modelId != null && engine.modelStudio(studio.modelId) !== null;
+              const id = back ? await engine.replaceModel(studio.modelId!, await f.arrayBuffer()) : await engine.addModelFile(f);
+              if (id == null) throw new Error('Could not load the model onto the canvas');
+              engine.setModelStudio(id, pid);
+              setStudio(null);
+              engine.select([id]);
+              toast(back ? 'Model updated' : 'Model on the canvas', back ? 'The changes from the AI Studio have been applied.' : 'Click it → “Edit in Studio” brings it back to the Studio.');
+            }}
+          />
+        </Suspense>
       )}
 
       {sync && <Presence me={sync.me} peers={[...sync.peers.values()]} status={syncStatus} />}

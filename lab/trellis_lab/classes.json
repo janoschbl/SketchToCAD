@@ -1,0 +1,686 @@
+[
+{
+"name": "owl",
+"label": "owl",
+"count": 126,
+"group": "LVIS"
+},
+{
+"name": "lion",
+"label": "lion",
+"count": 120,
+"group": "LVIS"
+},
+{
+"name": "rabbit",
+"label": "rabbit",
+"count": 119,
+"group": "LVIS"
+},
+{
+"name": "elephant",
+"label": "elephant",
+"count": 113,
+"group": "LVIS"
+},
+{
+"name": "crab_(animal)",
+"label": "crab (animal)",
+"count": 112,
+"group": "LVIS"
+},
+{
+"name": "shark",
+"label": "shark",
+"count": 108,
+"group": "LVIS"
+},
+{
+"name": "pony",
+"label": "pony",
+"count": 107,
+"group": "LVIS"
+},
+{
+"name": "wolf",
+"label": "wolf",
+"count": 105,
+"group": "LVIS"
+},
+{
+"name": "frog",
+"label": "frog",
+"count": 104,
+"group": "LVIS"
+},
+{
+"name": "penguin",
+"label": "penguin",
+"count": 103,
+"group": "LVIS"
+},
+{
+"name": "spider",
+"label": "spider",
+"count": 103,
+"group": "LVIS"
+},
+{
+"name": "butterfly",
+"label": "butterfly",
+"count": 100,
+"group": "LVIS"
+},
+{
+"name": "elk",
+"label": "elk",
+"count": 94,
+"group": "LVIS"
+},
+{
+"name": "kitten",
+"label": "kitten",
+"count": 93,
+"group": "LVIS"
+},
+{
+"name": "giraffe",
+"label": "giraffe",
+"count": 90,
+"group": "LVIS"
+},
+{
+"name": "horse",
+"label": "horse",
+"count": 90,
+"group": "LVIS"
+},
+{
+"name": "turtle",
+"label": "turtle",
+"count": 90,
+"group": "LVIS"
+},
+{
+"name": "cat",
+"label": "cat",
+"count": 87,
+"group": "LVIS"
+},
+{
+"name": "puppy",
+"label": "puppy",
+"count": 87,
+"group": "LVIS"
+},
+{
+"name": "dog",
+"label": "dog",
+"count": 86,
+"group": "LVIS"
+},
+{
+"name": "bird",
+"label": "bird",
+"count": 81,
+"group": "LVIS"
+},
+{
+"name": "fish",
+"label": "fish",
+"count": 80,
+"group": "LVIS"
+},
+{
+"name": "snake",
+"label": "snake",
+"count": 79,
+"group": "LVIS"
+},
+{
+"name": "grizzly",
+"label": "grizzly",
+"count": 77,
+"group": "LVIS"
+},
+{
+"name": "monkey",
+"label": "monkey",
+"count": 76,
+"group": "LVIS"
+},
+{
+"name": "cock",
+"label": "cock",
+"count": 75,
+"group": "LVIS"
+},
+{
+"name": "duckling",
+"label": "duckling",
+"count": 74,
+"group": "LVIS"
+},
+{
+"name": "gorilla",
+"label": "gorilla",
+"count": 74,
+"group": "LVIS"
+},
+{
+"name": "lizard",
+"label": "lizard",
+"count": 74,
+"group": "LVIS"
+},
+{
+"name": "bat_(animal)",
+"label": "bat (animal)",
+"count": 72,
+"group": "LVIS"
+},
+{
+"name": "rat",
+"label": "rat",
+"count": 71,
+"group": "LVIS"
+},
+{
+"name": "rhinoceros",
+"label": "rhinoceros",
+"count": 68,
+"group": "LVIS"
+},
+{
+"name": "tiger",
+"label": "tiger",
+"count": 66,
+"group": "LVIS"
+},
+{
+"name": "giant_panda",
+"label": "giant panda",
+"count": 65,
+"group": "LVIS"
+},
+{
+"name": "cow",
+"label": "cow",
+"count": 62,
+"group": "LVIS"
+},
+{
+"name": "eagle",
+"label": "eagle",
+"count": 61,
+"group": "LVIS"
+},
+{
+"name": "starfish",
+"label": "starfish",
+"count": 60,
+"group": "LVIS"
+},
+{
+"name": "chicken_(animal)",
+"label": "chicken (animal)",
+"count": 58,
+"group": "LVIS"
+},
+{
+"name": "deer",
+"label": "deer",
+"count": 58,
+"group": "LVIS"
+},
+{
+"name": "octopus_(animal)",
+"label": "octopus (animal)",
+"count": 58,
+"group": "LVIS"
+},
+{
+"name": "goldfish",
+"label": "goldfish",
+"count": 57,
+"group": "LVIS"
+},
+{
+"name": "bear",
+"label": "bear",
+"count": 54,
+"group": "LVIS"
+},
+{
+"name": "alligator",
+"label": "alligator",
+"count": 51,
+"group": "LVIS"
+},
+{
+"name": "crow",
+"label": "crow",
+"count": 51,
+"group": "LVIS"
+},
+{
+"name": "pet",
+"label": "pet",
+"count": 51,
+"group": "LVIS"
+},
+{
+"name": "dolphin",
+"label": "dolphin",
+"count": 50,
+"group": "LVIS"
+},
+{
+"name": "horned_cow",
+"label": "horned cow",
+"count": 48,
+"group": "LVIS"
+},
+{
+"name": "mallard",
+"label": "mallard",
+"count": 48,
+"group": "LVIS"
+},
+{
+"name": "hummingbird",
+"label": "hummingbird",
+"count": 47,
+"group": "LVIS"
+},
+{
+"name": "puffer_(fish)",
+"label": "puffer (fish)",
+"count": 47,
+"group": "LVIS"
+},
+{
+"name": "parrot",
+"label": "parrot",
+"count": 46,
+"group": "LVIS"
+},
+{
+"name": "polar_bear",
+"label": "polar bear",
+"count": 45,
+"group": "LVIS"
+},
+{
+"name": "bulldog",
+"label": "bulldog",
+"count": 44,
+"group": "LVIS"
+},
+{
+"name": "pigeon",
+"label": "pigeon",
+"count": 43,
+"group": "LVIS"
+},
+{
+"name": "seahorse",
+"label": "seahorse",
+"count": 43,
+"group": "LVIS"
+},
+{
+"name": "squirrel",
+"label": "squirrel",
+"count": 42,
+"group": "LVIS"
+},
+{
+"name": "beetle",
+"label": "beetle",
+"count": 41,
+"group": "LVIS"
+},
+{
+"name": "mammoth",
+"label": "mammoth",
+"count": 39,
+"group": "LVIS"
+},
+{
+"name": "camel",
+"label": "camel",
+"count": 38,
+"group": "LVIS"
+},
+{
+"name": "sheep",
+"label": "sheep",
+"count": 38,
+"group": "LVIS"
+},
+{
+"name": "flamingo",
+"label": "flamingo",
+"count": 37,
+"group": "LVIS"
+},
+{
+"name": "gazelle",
+"label": "gazelle",
+"count": 37,
+"group": "LVIS"
+},
+{
+"name": "goose",
+"label": "goose",
+"count": 37,
+"group": "LVIS"
+},
+{
+"name": "dragonfly",
+"label": "dragonfly",
+"count": 35,
+"group": "LVIS"
+},
+{
+"name": "puffin",
+"label": "puffin",
+"count": 35,
+"group": "LVIS"
+},
+{
+"name": "hamster",
+"label": "hamster",
+"count": 34,
+"group": "LVIS"
+},
+{
+"name": "shepherd_dog",
+"label": "shepherd dog",
+"count": 34,
+"group": "LVIS"
+},
+{
+"name": "duck",
+"label": "duck",
+"count": 33,
+"group": "LVIS"
+},
+{
+"name": "ladybug",
+"label": "ladybug",
+"count": 33,
+"group": "LVIS"
+},
+{
+"name": "eel",
+"label": "eel",
+"count": 32,
+"group": "LVIS"
+},
+{
+"name": "lamb_(animal)",
+"label": "lamb (animal)",
+"count": 32,
+"group": "LVIS"
+},
+{
+"name": "parakeet",
+"label": "parakeet",
+"count": 32,
+"group": "LVIS"
+},
+{
+"name": "pug-dog",
+"label": "pug-dog",
+"count": 32,
+"group": "LVIS"
+},
+{
+"name": "gull",
+"label": "gull",
+"count": 30,
+"group": "LVIS"
+},
+{
+"name": "ram_(animal)",
+"label": "ram (animal)",
+"count": 30,
+"group": "LVIS"
+},
+{
+"name": "rodent",
+"label": "rodent",
+"count": 30,
+"group": "LVIS"
+},
+{
+"name": "prawn",
+"label": "prawn",
+"count": 29,
+"group": "LVIS"
+},
+{
+"name": "salmon_(fish)",
+"label": "salmon (fish)",
+"count": 29,
+"group": "LVIS"
+},
+{
+"name": "crawfish",
+"label": "crawfish",
+"count": 28,
+"group": "LVIS"
+},
+{
+"name": "goat",
+"label": "goat",
+"count": 26,
+"group": "LVIS"
+},
+{
+"name": "hippopotamus",
+"label": "hippopotamus",
+"count": 26,
+"group": "LVIS"
+},
+{
+"name": "cockroach",
+"label": "cockroach",
+"count": 25,
+"group": "LVIS"
+},
+{
+"name": "ferret",
+"label": "ferret",
+"count": 25,
+"group": "LVIS"
+},
+{
+"name": "koala",
+"label": "koala",
+"count": 25,
+"group": "LVIS"
+},
+{
+"name": "dove",
+"label": "dove",
+"count": 24,
+"group": "LVIS"
+},
+{
+"name": "foal",
+"label": "foal",
+"count": 24,
+"group": "LVIS"
+},
+{
+"name": "ostrich",
+"label": "ostrich",
+"count": 24,
+"group": "LVIS"
+},
+{
+"name": "seabird",
+"label": "seabird",
+"count": 24,
+"group": "LVIS"
+},
+{
+"name": "baboon",
+"label": "baboon",
+"count": 23,
+"group": "LVIS"
+},
+{
+"name": "falcon",
+"label": "falcon",
+"count": 23,
+"group": "LVIS"
+},
+{
+"name": "heron",
+"label": "heron",
+"count": 23,
+"group": "LVIS"
+},
+{
+"name": "cub_(animal)",
+"label": "cub (animal)",
+"count": 20,
+"group": "LVIS"
+},
+{
+"name": "hornet",
+"label": "hornet",
+"count": 19,
+"group": "LVIS"
+},
+{
+"name": "zebra",
+"label": "zebra",
+"count": 19,
+"group": "LVIS"
+},
+{
+"name": "vulture",
+"label": "vulture",
+"count": 18,
+"group": "LVIS"
+},
+{
+"name": "dalmatian",
+"label": "dalmatian",
+"count": 17,
+"group": "LVIS"
+},
+{
+"name": "domestic_ass",
+"label": "domestic ass",
+"count": 16,
+"group": "LVIS"
+},
+{
+"name": "walrus",
+"label": "walrus",
+"count": 12,
+"group": "LVIS"
+},
+{
+"name": "calf",
+"label": "calf",
+"count": 11,
+"group": "LVIS"
+},
+{
+"name": "pelican",
+"label": "pelican",
+"count": 9,
+"group": "LVIS"
+},
+{
+"name": "cougar",
+"label": "cougar",
+"count": 8,
+"group": "LVIS"
+},
+{
+"name": "manatee",
+"label": "manatee",
+"count": 7,
+"group": "LVIS"
+},
+{
+"name": "dragon",
+"label": "dragon",
+"count": 2536,
+"group": "Fabelwesen"
+},
+{
+"name": "unicorn",
+"label": "unicorn",
+"count": 159,
+"group": "Fabelwesen"
+},
+{
+"name": "phoenix",
+"label": "phoenix",
+"count": 133,
+"group": "Fabelwesen"
+},
+{
+"name": "mermaid",
+"label": "mermaid",
+"count": 103,
+"group": "Fabelwesen"
+},
+{
+"name": "gargoyle",
+"label": "gargoyle",
+"count": 86,
+"group": "Fabelwesen"
+},
+{
+"name": "werewolf",
+"label": "werewolf",
+"count": 84,
+"group": "Fabelwesen"
+},
+{
+"name": "griffin",
+"label": "griffin",
+"count": 70,
+"group": "Fabelwesen"
+},
+{
+"name": "pegasus",
+"label": "pegasus",
+"count": 54,
+"group": "Fabelwesen"
+},
+{
+"name": "wyvern",
+"label": "wyvern",
+"count": 49,
+"group": "Fabelwesen"
+},
+{
+"name": "kraken",
+"label": "kraken",
+"count": 48,
+"group": "Fabelwesen"
+},
+{
+"name": "centaur",
+"label": "centaur",
+"count": 46,
+"group": "Fabelwesen"
+},
+{
+"name": "yeti",
+"label": "yeti",
+"count": 44,
+"group": "Fabelwesen"
+}
+]

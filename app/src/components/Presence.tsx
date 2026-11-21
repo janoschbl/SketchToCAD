@@ -2,9 +2,9 @@ import type { Peer, SyncStatus } from '@/sync/CanvasSync';
 import WarmTooltip from '@/components/WarmTooltip';
 
 const STATUS: Record<SyncStatus, { label: string; dot: string }> = {
-  connected: { label: 'Live verbunden', dot: 'bg-emerald-500' },
-  connecting: { label: 'Verbinde…', dot: 'bg-amber-400 animate-pulse' },
-  offline: { label: 'Offline – Änderungen werden nachgereicht', dot: 'bg-neutral-400' },
+  connected: { label: 'Live connected', dot: 'bg-emerald-500' },
+  connecting: { label: 'Connecting…', dot: 'bg-amber-400 animate-pulse' },
+  offline: { label: 'Offline – changes will sync later', dot: 'bg-neutral-400' },
 };
 
 function Avatar({ name, color, ring }: { name: string; color: string; ring?: boolean }) {

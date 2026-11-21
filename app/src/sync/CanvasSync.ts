@@ -27,17 +27,17 @@ type DraftOp = (string | number | null)[];
 
 const LOCAL = Symbol('local');
 const TICK_MS = 33;
-const PEER_COLORS = ['#e8590c', '#2f9e44', '#1971c2', '#9c36b5', '#c2255c', '#0c8599', '#f08c00', '#5f3dc4'];
-const ANIMALS = ['Fuchs', 'Dachs', 'Otter', 'Luchs', 'Biber', 'Falke', 'Igel', 'Wal', 'Uhu', 'Hase', 'Elch', 'Robbe'];
+export const PEER_COLORS = ['#e8590c', '#2f9e44', '#1971c2', '#9c36b5', '#c2255c', '#0c8599', '#f08c00', '#5f3dc4'];
+const ANIMALS = ['Fox', 'Badger', 'Otter', 'Lynx', 'Beaver', 'Falcon', 'Hedgehog', 'Whale', 'Owl', 'Hare', 'Moose', 'Seal'];
 
-function myName() {
+export function myName() {
   try {
     const s = localStorage.getItem('stc-name');
     if (s) return s;
     const n = `${ANIMALS[Math.floor(Math.random() * ANIMALS.length)]} ${Math.floor(Math.random() * 90 + 10)}`;
     localStorage.setItem('stc-name', n);
     return n;
-  } catch { return 'Gast'; }
+  } catch { return 'Guest'; }
 }
 
 /** Lage eines 3D-Objekts (Position, Quaternion, Skalierung) als kompakter String. */
@@ -161,7 +161,7 @@ export class CanvasSync {
       }
       case 'model':
         if (!e.src) { this.uploadModel(e); return null; }
-        return { t: 'model', x: q(e.x), y: q(e.y), w: q(e.w), h: q(e.h), src: e.src, l: e.label, ...this.model3d(e.ms) };
+        return { t: 'model', x: q(e.x), y: q(e.y), w: q(e.w), h: q(e.h), src: e.src, l: e.label, ...(e.studio ? { sp: e.studio } : {}), ...this.model3d(e.ms) };
       default:
         return { t: e.type, x: q(e.x), y: q(e.y), w: q(e.w), h: q(e.h), c: e.color, sw: e.width, f: e.fill, op };
     }
@@ -285,7 +285,7 @@ export class CanvasSync {
   // ---------- Blobs ----------
   private async putBlob(body: Blob | ArrayBuffer, type: string): Promise<string> {
     const r = await fetch('/blobs', { method: 'POST', headers: { 'Content-Type': type }, body });
-    if (!r.ok) throw new Error(`Blob-Upload fehlgeschlagen: ${r.status}`);
+    if (!r.ok) throw new Error(`Blob upload failed: ${r.status}`);
     return (await r.json()).hash;
   }
 
@@ -390,6 +390,7 @@ export class CanvasSync {
         break;
       case 'model':
         el.label = r.l as string;
+        el.studio = typeof r.sp === 'string' ? r.sp : undefined;
         if (typeof r.src === 'string' && r.src !== el.src) this.swapModel(el, r.src);
         else this.apply3d(el, r);
         break;

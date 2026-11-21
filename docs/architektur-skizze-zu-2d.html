@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architektur Skizze → 2D-Bild</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --card: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #d9d6cf;
+    --frozen: #e9e7e2; --frozen-ink: #4a4a4f;
+    --train: #dbe9ff; --train-ink: #15407a; --train-line: #2f6fd1;
+    --todo: #fff4d6; --todo-ink: #6b4b00;
+    --arrow: #8a877f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17171a; --card: #202025; --ink: #ececf1; --muted: #9a9aa3; --line: #3a3a42;
+      --frozen: #2b2b31; --frozen-ink: #c8c8d0;
+      --train: #1d2f4d; --train-ink: #b9d4ff; --train-line: #5b93e6;
+      --todo: #3a3018; --todo-ink: #f3d68a;
+      --arrow: #6e6e78;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17171a; --card: #202025; --ink: #ececf1; --muted: #9a9aa3; --line: #3a3a42;
+    --frozen: #2b2b31; --frozen-ink: #c8c8d0;
+    --train: #1d2f4d; --train-ink: #b9d4ff; --train-line: #5b93e6;
+    --todo: #3a3018; --todo-ink: #f3d68a;
+    --arrow: #6e6e78;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  h2 { font-size: 17px; margin: 32px 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; border: 1px solid var(--line); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+
+  /* Flussdiagramm */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+  .node { flex: 1 1 120px; min-width: 0; border-radius: 10px; padding: 10px 12px; border: 1px solid var(--line); background: var(--frozen); color: var(--frozen-ink); }
+  .node b { display: block; font-size: 14px; margin-bottom: 2px; color: var(--ink); }
+  .node small { display: block; font-size: 12px; color: var(--muted); }
+  .node.train { background: var(--train); color: var(--train-ink); border: 1.5px solid var(--train-line); }
+  .node.train b { color: var(--train-ink); }
+  .node.todo { background: var(--card); border: 1.5px dashed var(--muted); }
+  .node.io { background: var(--card); }
+  .arrow { align-self: center; color: var(--arrow); font-size: 18px; padding: 0 2px; }
+  .branch { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .stack { display: flex; flex-direction: column; gap: 8px; flex: 1 1 170px; }
+  .stack .node { flex: none; }
+
+  @media (max-width: 560px) {
+    .flow { flex-direction: column; }
+    .arrow { transform: rotate(90deg); align-self: center; }
+    .node { flex: none; width: 100%; }
+  }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .lora { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 14px; background: var(--frozen); border-radius: 8px; padding: 12px; overflow-x: auto; color: var(--ink); }
+  ul { padding-left: 18px; margin: 8px 0; }
+  li { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .t-done { background: var(--train); color: var(--train-ink); }
+  .t-todo { background: var(--todo); color: var(--todo-ink); }
+  .t-frozen { background: var(--frozen); color: var(--frozen-ink); }
+  code { font-size: 13px; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Architektur: Skizze → 2D-Bild</h1>
+  <p class="sub">Vortrainiertes Skizzen-Bildmodell (SDXL + Scribble-ControlNet) als Basis, eigenes Fine-Tune bzw. LoRA darauf. Ausgabe ist ein RGB-Bild für TRELLIS. Stand 2026-11-21. Quelle: <code>docs/pipeline-gobjaverse-trellis.md</code>.</p>
+
+  <div class="legend">
+    <span><span class="sw" style="background:var(--frozen)"></span>eingefroren (Basismodell, unverändert)</span>
+    <span><span class="sw" style="background:var(--train);border-color:var(--train-line)"></span>trainiert (eigene Gewichte)</span>
+    <span><span class="sw" style="background:var(--card);border:1.5px dashed var(--muted)"></span>geplant, noch nicht gebaut</span>
+  </div>
+
+  <h2>1 · Laufzeit (Inferenz)</h2>
+  <div class="card">
+    <div class="flow">
+      <div class="node io"><b>Handskizze</b><small>512², weiß/schwarz</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>ControlNet Scribble</b><small>xinsir SDXL, Apache-2.0, eingefroren (Ansatz B)</small></div>
+      <div class="arrow">→</div>
+      <div class="node train"><b>SDXL U-Net + LoRA</b><small>Basis eingefroren · LoRA-Adapter trainiert</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>VAE-Decoder</b><small>SDXL, eingefroren</small></div>
+      <div class="arrow">→</div>
+      <div class="node io"><b>RGB-Bild</b><small>Objekt zentriert, Hintergrund</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>Freistellen</b><small>rembg / u2net</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>TRELLIS</b><small>microsoft, eingefroren, ohne Training</small></div>
+      <div class="arrow">→</div>
+      <div class="node io"><b>3D-Modell</b><small>GLB, mehrere Seeds, Auswahl</small></div>
+    </div>
+    <div class="flow" style="margin-top:10px">
+      <div class="node"><b>Caption (Text)</b><small>Cap3D-Caption oder „3D render of a {Kategorie}“</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>Text-Encoder</b><small>CLIP ViT-L + OpenCLIP, eingefroren</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>in U-Net</b><small>Cross-Attention, Prompt-Steuerung</small></div>
+    </div>
+    <p class="note">Denoising mit Classifier-Free Guidance: Skizze steuert Umriss und Richtung, der Prompt steuert Stil. Auflösung 512² oder 1024² ist noch offen (Entscheidung nach dem Zero-Shot-Test).</p>
+  </div>
+
+  <h2>2 · Training (einmalig, Cloud-GPU)</h2>
+  <div class="card">
+    <div class="flow">
+      <div class="node io"><b>GObjaverse-Ansicht</b><small>target.png (RGB, 512²)</small></div>
+      <div class="arrow">+</div>
+      <div class="node io"><b>Skizze aus Karten</b><small>Stufe 1: Umriss, Knicke, Tiefe, Stilvarianten</small></div>
+      <div class="arrow">+</div>
+      <div class="node io"><b>Caption</b><small>Cap3D</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>VAE-Encoder</b><small>Bild → Latent z₀</small></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>+ Rauschen</b><small>Zeitschritt t zufällig</small></div>
+      <div class="arrow">→</div>
+      <div class="node train"><b>U-Net + LoRA</b><small>sagt Rauschen ε voraus</small></div>
+      <div class="arrow">→</div>
+      <div class="node todo"><b>Verlust</b><small>MSE(ε̂, ε) · nur LoRA-Gewichte aktualisiert</small></div>
+    </div>
+    <p class="note">Die Skizze geht über das ControlNet in das U-Net. Echte Handskizzen (DifferSketching, CAD2Sketch) gehen nie ins Training, nur in den Test.</p>
+  </div>
+
+  <h2>3 · Zwei Wege zum Fine-Tune</h2>
+  <div class="grid2">
+    <div class="card">
+      <b>Ansatz A (empfohlen): ControlNet trainieren</b>
+      <ul>
+        <li>U-Net SDXL bleibt eingefroren.</li>
+        <li>Das ControlNet (Kopie des Encoders) wird auf Paaren Skizze → Ziel weitertrainiert.</li>
+        <li>Diffusers-Skript: <code>train_controlnet_sdxl.py</code> (laut README gesehen, Skript nicht geöffnet).</li>
+        <li>Braucht viel GPU-Speicher, laut Doku grob ≥ 24 GB für SDXL (unverifiziert).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <b>Ansatz B (billiger): LoRA auf dem U-Net</b>
+      <ul>
+        <li>ControlNet bleibt eingefroren, nur kleine Adapter werden trainiert.</li>
+        <li>Rang <code>r</code> klein halten (z. B. 8–32, Annahme); Anzahl trainierbarer Parameter ein Bruchteil des U-Nets.</li>
+        <li>Ergebnis ist eine kleine Datei, die auf das Basismodell aufgesetzt wird.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <b>LoRA-Prinzip</b>
+    <div class="lora" style="margin-top:8px">W′ = W₀ + (α / r) · B · A
+
+W₀ ∈ ℝ<sup>d×k</sup>   eingefroren (SDXL-Gewicht)
+A ∈ ℝ<sup>r×k</sup>    trainiert, Start: zufällig
+B ∈ ℝ<sup>d×r</sup>    trainiert, Start: 0  → Anfangs wirkt der Adapter nicht
+r ≪ min(d, k)           Trainingsparameter: r·(d+k) statt d·k</div>
+    <p class="note">Ein Adapter kann pro Kategorie (Tiere, Pflanzen, Fabelwesen) getrennt gespeichert und bei Bedarf geladen werden, ohne das Basismodell zu kopieren.</p>
+  </div>
+
+  <h2>4 · Stand: was existiert, was fehlt</h2>
+  <div class="card">
+    <table>
+      <tr><th>Baustein</th><th>Status</th><th>Im Repo</th></tr>
+      <tr><td>GObjaverse-Auswahl und Download (Pilot, 100 Objekte)</td><td><span class="tag t-done">erledigt</span></td><td><code>lab/gobj/select.py</code>, <code>download.py</code></td></tr>
+      <tr><td>Stufe 1: Skizzen aus Karten (Linien, Stilvarianten)</td><td><span class="tag t-todo">nächster Schritt</span></td><td>Konzept in der Doku; Skript fehlt</td></tr>
+      <tr><td>Stufe 2a: Zero-Shot-Baseline mit SDXL-Scribble</td><td><span class="tag t-todo">offen</span></td><td>Test-Server nutzt SD 1.5, nicht SDXL</td></tr>
+      <tr><td>Stufe 2b: LoRA- oder ControlNet-Training</td><td><span class="tag t-todo">nicht begonnen</span></td><td>Kein LoRA-Code im Repo</td></tr>
+      <tr><td>Stufe 3: TRELLIS (Bild → 3D)</td><td><span class="tag t-todo">nur Cloud geplant</span></td><td>Lokal läuft TripoSR (<code>server_local.py</code>), nicht TRELLIS</td></tr>
+      <tr><td>Test-Server Skizze → Bild (SD 1.5 + Scribble, lokal)</td><td><span class="tag t-done">läuft</span></td><td><code>lab/trellis_lab/server_local.py</code></td></tr>
+    </table>
+  </div>
+
+  <h2>5 · Hardware</h2>
+  <div class="card">
+    <table>
+      <tr><th>Aufgabe</th><th>Bedarf</th><th>Heim-PC (RTX 2070, 8 GB)</th></tr>
+      <tr><td>Training SDXL (ControlNet oder LoRA)</td><td>laut Doku ≥ 24 GB</td><td><span class="tag t-todo">nein</span> → Cloud-GPU</td></tr>
+      <tr><td>Training SD 1.5 (Ausweich)</td><td>Annahme: 8–12 GB mit Checkpointing</td><td><span class="tag t-todo">knapp</span></td></tr>
+      <tr><td>Inferenz SD 1.5 + ControlNet</td><td>in Betrieb</td><td><span class="tag t-done">ja</span></td></tr>
+      <tr><td>TRELLIS</td><td>≥ 16 GB (README)</td><td><span class="tag t-todo">nein</span> → Cloud-GPU</td></tr>
+    </table>
+  </div>
+
+  <p class="note">Nicht Teil dieser Seite: das eigene Voxelmodell <code>LiftNet</code> (<code>lab/model_v2.py</code>). Es arbeitet ohne Basismodell, trainiert von Null, und bildet Skizze → Voxel 64³ ab.</p>
+</main>
+</body>
+</html>

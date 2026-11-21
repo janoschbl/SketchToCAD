@@ -13,7 +13,7 @@ export type PromptConfig = { mode: string; defaultModel: string; models: PromptM
 function modelInfo(id: string, defaultId: string): PromptModel {
   const m = /^gpt-(\d+(?:\.\d+)?)-([a-z]+)$/i.exec(id);
   const family = m?.[2].toLowerCase();
-  const tag = id === defaultId ? 'Standard' : family === 'astra' ? 'Stärkste' : family === 'terra' ? 'Günstigste' : '';
+  const tag = id === defaultId ? 'Default' : family === 'astra' ? 'Strongest' : family === 'terra' ? 'Cheapest' : '';
   return { key: id, name: m ? `GPT-${m[1]} ${m[2][0].toUpperCase()}${m[2].slice(1)}` : id, tag };
 }
 
@@ -31,15 +31,15 @@ async function call(path: string, init?: RequestInit): Promise<any> {
   try {
     r = await fetch(BASE + path, init);
   } catch {
-    throw new PromptError('Prompt-Server nicht erreichbar. Starte ihn mit „bun run prompt-server“.');
+    throw new PromptError('Prompt server unreachable. Start it with “bun run prompt-server”.');
   }
   const text = await r.text();
   let j: any = null;
   try { j = JSON.parse(text); } catch { /* keine JSON-Antwort */ }
   if (!r.ok) {
     if (j?.fehler) throw new PromptError(String(j.fehler));
-    if (r.status >= 500 && !text) throw new PromptError('Prompt-Server nicht erreichbar. Starte ihn mit „bun run prompt-server“.');
-    throw new PromptError(r.status === 422 ? 'Ungültige Anfrage an den Prompt-Server.' : `Prompt-Server-Fehler ${r.status}`);
+    if (r.status >= 500 && !text) throw new PromptError('Prompt server unreachable. Start it with “bun run prompt-server”.');
+    throw new PromptError(r.status === 422 ? 'Invalid request to the prompt server.' : `Prompt-Server-Fehler ${r.status}`);
   }
   return j;
 }
@@ -105,8 +105,8 @@ async function finish(j: any): Promise<PromptResult> {
   const d = digest(j);
   if (!j.neue_version || !j.glb_url) return { glb: null, ...d };
   let r: Response;
-  try { r = await fetch(BASE + j.glb_url); } catch { throw new PromptError('Ergebnis konnte nicht geladen werden.'); }
-  if (!r.ok) throw new PromptError('Ergebnis konnte nicht geladen werden.');
+  try { r = await fetch(BASE + j.glb_url); } catch { throw new PromptError('Could not load the result.'); }
+  if (!r.ok) throw new PromptError('Could not load the result.');
   return { glb: await r.arrayBuffer(), ...d };
 }
 
@@ -144,7 +144,7 @@ function form(a: EditArgs): FormData {
   fd.append('ausgewaehlt', a.part ?? '');
   if (a.image) {
     const b = dataUrlToBlob(a.image);
-    if (b.size > MAX_IMAGE_BYTES) throw new PromptError('Das Referenzbild ist größer als 12 MB.');
+    if (b.size > MAX_IMAGE_BYTES) throw new PromptError('The reference image is larger than 12 MB.');
     fd.append('bild', b, 'referenz.png');
   }
   (a.views ?? []).forEach((v, i) => fd.append('ansichten', dataUrlToBlob(v), `ansicht_${i + 1}.${v.startsWith('data:image/png') ? 'png' : 'jpg'}`));
@@ -158,7 +158,7 @@ function form(a: EditArgs): FormData {
 
 /** Bestehendes Modell (GLB) per Prompt ändern. `part` = angeklicktes Teil bzw. *-Muster. */
 export async function editModel(a: EditArgs & { glb: ArrayBuffer }): Promise<PromptResult> {
-  if (a.glb.byteLength > MAX_MODEL_BYTES) throw new PromptError('Das Modell ist größer als 200 MB.');
+  if (a.glb.byteLength > MAX_MODEL_BYTES) throw new PromptError('The model is larger than 200 MB.');
   const fd = form(a);
   fd.append('datei', new Blob([a.glb], { type: 'model/gltf-binary' }), 'modell.glb');
   return finish(await call('/api/edit-glb', { method: 'POST', body: fd }));
@@ -180,13 +180,13 @@ export async function continueEdit(session: string, a: EditArgs): Promise<Prompt
 
 /** OBJ/USD (oder glTF) über den Prompt-Server in GLB umwandeln. */
 export async function convertModel(f: File): Promise<ArrayBuffer> {
-  if (f.size > MAX_MODEL_BYTES) throw new PromptError('Die Datei ist größer als 200 MB.');
+  if (f.size > MAX_MODEL_BYTES) throw new PromptError('The file is larger than 200 MB.');
   const fd = new FormData();
   fd.append('datei', f, f.name);
   let r: Response;
-  try { r = await fetch(BASE + '/api/convert', { method: 'POST', body: fd }); } catch { throw new PromptError('Prompt-Server nicht erreichbar. Starte ihn mit „bun run prompt-server“.'); }
+  try { r = await fetch(BASE + '/api/convert', { method: 'POST', body: fd }); } catch { throw new PromptError('Prompt server unreachable. Start it with “bun run prompt-server”.'); }
   if (!r.ok) {
-    let msg = `Umwandeln fehlgeschlagen (${r.status})`;
+    let msg = `Conversion failed (${r.status})`;
     try { const j = await r.json(); if (j?.fehler) msg = String(j.fehler); } catch { /* keine JSON-Antwort */ }
     throw new PromptError(msg);
   }

@@ -20,7 +20,7 @@ export type TextEl = { type: 'text'; id: number; op: number; x: number; y: numbe
 /** rev: Zähler für Pixeländerungen (Radieren, Freistellen) – die Sync-Schicht lädt dann eine neue Blob-Version hoch. */
 export type ImageEl = { type: 'image'; id: number; x: number; y: number; w: number; h: number; cv: HTMLCanvasElement; label: string; rev: number; blob?: string };
 /** src: 'demo:<seed>' oder sha256 einer hochgeladenen GLB-Datei; glb: Rohdaten bis zum Upload. */
-export type ModelEl = { type: 'model'; id: number; x: number; y: number; w: number; h: number; ms: ModelScene; label: string; src: string; glb?: ArrayBuffer };
+export type ModelEl = { type: 'model'; id: number; x: number; y: number; w: number; h: number; ms: ModelScene; label: string; src: string; glb?: ArrayBuffer; /** KI-Studio-Projekt, aus dem das Modell stammt */ studio?: string };
 export type El = Stroke | Shape | TextEl | ImageEl | ModelEl;
 /** Im Modell angeklickte Teile (eins oder mehrere): Namen und die Muster, unter denen sie der Prompt-Editor kennt. */
 export type PartRef = { modelId: number; names: string[]; patterns: string[]; logos: boolean };
@@ -268,7 +268,9 @@ export class Engine {
   private moved = false;
   private lastScr: Pt = { x: 0, y: 0 };
   private ptrScr: Pt | null = null;
-  private resizeFrom = { w: 0, h: 0 };
+  private resizeFrom = { x: 0, y: 0, w: 0, h: 0 };
+  private corner: 'nw' | 'ne' | 'sw' | 'se' = 'se';
+  private hoverPickT = 0;
   private last: Pt = { x: 0, y: 0 };
   private pinch = { d: 1, cx: 0, cy: 0 };
   private moveTot = { x: 0, y: 0 };
@@ -374,8 +376,8 @@ export class Engine {
   info(id: number): { id: number; type: ElType; label: string } | null {
     const e = this.byId(id);
     if (!e) return null;
-    const names: Record<ElType, string> = { stroke: 'Skizze', rect: 'Rechteck', diamond: 'Raute', ellipse: 'Ellipse', arrow: 'Pfeil', line: 'Linie', text: 'Text', image: 'Bild', model: '3D-Modell' };
-    const label = e.type === 'image' || e.type === 'model' ? e.label : e.type === 'text' ? (e.note ? 'Notiz' : 'Text') + ` „${e.text.slice(0, 18)}${e.text.length > 18 ? '…' : ''}“` : names[e.type];
+    const names: Record<ElType, string> = { stroke: 'Sketch', rect: 'Rectangle', diamond: 'Diamond', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', image: 'Image', model: '3D model' };
+    const label = e.type === 'image' || e.type === 'model' ? e.label : e.type === 'text' ? (e.note ? 'Note' : 'Text') + ` “${e.text.slice(0, 18)}${e.text.length > 18 ? '…' : ''}”` : names[e.type];
     return { id, type: e.type, label };
   }
 
@@ -596,9 +598,24 @@ export class Engine {
   // ---------- 3D direkt auf dem Canvas ----------
   private zone(m: Boxy, p: Pt): 'corner' | 'border' | 'inside' {
     const c = this.cam, lx = p.x - (m.x - c.x) * c.z, ly = p.y - (m.y - c.y) * c.z, sw = m.w * c.z, sh = m.h * c.z;
-    if (lx > sw - 18 && ly > sh - 18) return 'corner';
+    // Anfasser an allen vier Ecken (gezeichnet 5 px außerhalb des Elements)
+    const R = 11;
+    for (const [k, cx, cy] of [['nw', -5, -5], ['ne', sw + 5, -5], ['sw', -5, sh + 5], ['se', sw + 5, sh + 5]] as const) {
+      if (Math.abs(lx - cx) < R && Math.abs(ly - cy) < R) { this.corner = k; return 'corner'; }
+    }
     if (lx < 10 || ly < 10 || lx > sw - 10 || ly > sh - 10) return 'border';
     return 'inside';
+  }
+
+  /** Liegt der Bildschirmpunkt auf dem Modell selbst (nicht auf leerem Hintergrund der Box)? */
+  private onModel(m: ModelEl, p: Pt) {
+    const c = this.cam, lx = p.x - (m.x - c.x) * c.z, ly = p.y - (m.y - c.y) * c.z;
+    return !!this.viewer.pick(m.ms, (lx / (m.w * c.z)) * 2 - 1, -(ly / (m.h * c.z)) * 2 + 1);
+  }
+
+  private startResize(el: Boxy) {
+    this.mode = 'resize';
+    this.resizeFrom = { x: el.x, y: el.y, w: el.w, h: el.h };
   }
 
   /** Teil anklicken. Mit Umschalt/Strg/Cmd (oder Mehrfachmodus) kommt das Teil zur Auswahl dazu bzw. fällt heraus. */
@@ -631,6 +648,8 @@ export class Engine {
     this.lastScr = p;
     this.last = w;
     this.moveTot = { x: 0, y: 0 };
+    const one = this.selSet.length === 1 ? this.selSet[0] : null;
+    if ((one?.type === 'model' || one?.type === 'image') && !e.shiftKey && this.zone(one, p) === 'corner') { this.sel = one; this.startResize(one); return; }
     const el = this.topHit(w, 6 / this.cam.z);
     if (this.active && this.active !== el) this.deselect3d();
     if (!el) {
@@ -649,14 +668,14 @@ export class Engine {
     if (!this.selSet.includes(el)) this.setSel([el], el);
     else this.sel = el;
     if (el.type === 'image') {
-      this.mode = this.selSet.length === 1 && this.zone(el, p) === 'corner' ? 'resize' : 'move';
-      this.resizeFrom = { w: el.w, h: el.h };
+      if (this.selSet.length === 1 && this.zone(el, p) === 'corner') this.startResize(el); else this.mode = 'move';
       return;
     }
     if (el.type !== 'model') { this.mode = 'move'; return; }
     const z = this.zone(el, p);
-    if (z === 'corner') { this.mode = 'resize'; this.resizeFrom = { w: el.w, h: el.h }; return; }
-    if (z === 'border') { this.mode = 'move'; return; }
+    if (z === 'corner') { this.startResize(el); return; }
+    // Rand oder leerer Hintergrund in der Box = verschieben; auf dem Modell = drehen (Klick = Teil wählen)
+    if (z === 'border' || !this.onModel(el, p)) { this.mode = 'move'; return; }
     this.pickAdd = e.shiftKey || e.ctrlKey || e.metaKey || this.multiPart;
     this.mode = 'orbit';
   }
@@ -775,9 +794,14 @@ export class Engine {
       return;
     }
     if (this.mode === 'resize' && (this.sel?.type === 'model' || this.sel?.type === 'image')) {
-      const el = this.sel;
-      el.w = Math.max(40, w.x - el.x);
-      el.h = el.type === 'image' ? el.w * (this.resizeFrom.h / this.resizeFrom.w) : Math.max(60, w.y - el.y);
+      const el = this.sel, f = this.resizeFrom, k = this.corner;
+      // Gegenüberliegende Ecke bleibt fest, Seitenverhältnis bleibt (Umschalt = frei bei 3D-Modellen)
+      const ax = k === 'nw' || k === 'sw' ? f.x + f.w : f.x, ay = k === 'nw' || k === 'ne' ? f.y + f.h : f.y;
+      let nw = Math.max(40, Math.abs(w.x - ax)), nh = Math.max(40, Math.abs(w.y - ay));
+      if (!(e.shiftKey && el.type === 'model')) { const r = f.h / f.w; if (nh / nw > r) nw = nh / r; else nh = nw * r; }
+      el.w = nw; el.h = nh;
+      el.x = ax === f.x ? f.x : ax - nw;
+      el.y = ay === f.y ? f.y : ay - nh;
       if (el.type === 'model') el.ms.dirty = true;
       this.dirty = true;
       return;
@@ -812,10 +836,19 @@ export class Engine {
     const el = this.topHit(w, 6 / this.cam.z);
     if (el !== this.hover) { this.hover = el; this.dirty = true; }
     let cur = 'default';
-    if (el?.type === 'model') {
+    const one = this.selSet.length === 1 ? this.selSet[0] : null;
+    const cornerCur = () => (this.corner === 'nw' || this.corner === 'se' ? 'nwse-resize' : 'nesw-resize');
+    if ((one?.type === 'model' || one?.type === 'image') && this.zone(one, p) === 'corner') cur = cornerCur();
+    else if (el?.type === 'model') {
       const z = this.zone(el, p);
-      cur = z === 'corner' ? 'nwse-resize' : z === 'border' ? 'move' : 'grab';
-    } else if (el?.type === 'image') cur = this.selSet.length === 1 && this.selSet[0] === el && this.zone(el, p) === 'corner' ? 'nwse-resize' : 'move';
+      if (z === 'border' || z === 'corner') cur = 'move';
+      else {
+        // Auf dem Modell = drehen (grab), leerer Hintergrund = verschieben; Raycast gedrosselt
+        const now = performance.now();
+        if (now - this.hoverPickT > 40) { this.hoverPickT = now; this.canvas.dataset.onModel = this.onModel(el, p) ? '1' : ''; }
+        cur = this.canvas.dataset.onModel ? 'grab' : 'move';
+      }
+    } else if (el?.type === 'image') cur = 'move';
     else if (el) cur = 'move';
     this.canvas.style.cursor = cur;
   }
@@ -831,8 +864,8 @@ export class Engine {
     } else if (this.mode === 'orbit' && this.sel?.type === 'model') {
       this.onChange?.(); // Endstand der Drehung synchronisieren
     } else if (this.mode === 'resize' && (this.sel?.type === 'model' || this.sel?.type === 'image')) {
-      const m = this.sel, from = this.resizeFrom, to = { w: m.w, h: m.h };
-      if (from.w !== to.w || from.h !== to.h) this.push({ undo: () => this.setSize(m, from.w, from.h), redo: () => this.setSize(m, to.w, to.h) });
+      const m = this.sel, from = { ...this.resizeFrom }, to = { x: m.x, y: m.y, w: m.w, h: m.h };
+      if (from.w !== to.w || from.h !== to.h) this.push({ undo: () => this.setBox(m, from), redo: () => this.setBox(m, to) });
     } else if (this.mode === 'marquee' && this.marquee) {
       const { a, b, add } = this.marquee;
       const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
@@ -882,6 +915,12 @@ export class Engine {
     this.dirty = true;
   }
 
+  private setBox(el: Boxy, b: { x: number; y: number; w: number; h: number }) {
+    el.x = b.x; el.y = b.y;
+    this.setSize(el, b.w, b.h);
+    this.onChange?.();
+  }
+
   private setSize(el: Boxy, w: number, h: number) {
     el.w = w; el.h = h;
     if (el.type === 'model') el.ms.dirty = true;
@@ -919,7 +958,7 @@ export class Engine {
     if ((k === 'delete' || k === 'backspace') && this.selSet.length) { this.removeEls(this.selSet.slice()); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === 'i') { this.onImagePick?.(); return; }
-    const map: Record<string, Tool> = { v: 'select', 1: 'select', h: 'hand', p: 'pen', e: 'eraser', r: 'rect', d: 'diamond', o: 'ellipse', a: 'arrow', l: 'line', t: 'text', n: 'note', c: 'comment', g: 'bucket', x: 'imgErase', m: 'magic' };
+    const map: Record<string, Tool> = { v: 'select', 1: 'select', h: 'hand', p: 'pen', e: 'eraser', r: 'rect', d: 'diamond', o: 'ellipse', a: 'arrow', l: 'line', t: 'text', n: 'note', c: 'comment', g: 'bucket', x: 'imgErase' };
     if (map[k]) this.onTool?.(map[k]);
   }
 
@@ -987,7 +1026,7 @@ export class Engine {
     bmp.close();
     const c = at ?? this.toWorld({ x: this.W / 2, y: this.H / 2 });
     const w = Math.min(cv.width, 520 / this.cam.z), h = (w * cv.height) / cv.width;
-    const el: ImageEl = { type: 'image', id: this.newId(), x: c.x - w / 2, y: c.y - h / 2, w, h, cv, label: `Bild ${this.countType('image') + 1}`, rev: 0 };
+    const el: ImageEl = { type: 'image', id: this.newId(), x: c.x - w / 2, y: c.y - h / 2, w, h, cv, label: `Image ${this.countType('image') + 1}`, rev: 0 };
     this.addEl(el);
     this.setSel([el]);
     this.onTool?.('select');
@@ -1036,7 +1075,7 @@ export class Engine {
     const ctx = cv.getContext('2d')!;
     ctx.setTransform(k, 0, 0, k, PX / 2 - cx * k, PX / 2 - cy * k);
     for (const s of list) this.drawEl(ctx, { ...s, color: '#000', op: 100, fill: null, width: side / 100, path: null, fp: null });
-    return { png: new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('PNG fehlgeschlagen'))), 'image/png')), box };
+    return { png: new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('PNG export failed'))), 'image/png')), box };
   }
 
   /** Erzeugtes Mesh als 3D-Modell rechts neben der Skizze einfügen; die Magic-Striche gelten danach als erledigt. */
@@ -1065,7 +1104,13 @@ export class Engine {
   private countType(t: ElType) { return this.els.reduce((n, e) => n + (e.type === t ? 1 : 0), 0); }
 
   private addModelFrom(ms: ModelScene, x: number, y: number, src: string, glb?: ArrayBuffer): ModelEl {
-    const m: ModelEl = { type: 'model', id: this.newId(), x, y, w: 380, h: 285, ms, label: `3D-Modell ${this.countType('model') + 1}`, src, glb };
+    // Box eng ums Modell: Seitenverhältnis der Silhouette, längste Seite 300 px (vorher fest 380 × 285 mit viel Rand)
+    const { aspect, dist } = this.viewer.tightFrame(ms);
+    ms.dist = dist;
+    this.viewer.applyCam(ms);
+    const S = 300, w = aspect >= 1 ? S : S * aspect, h = aspect >= 1 ? S / aspect : S;
+    // x/y sind die linke obere Ecke der alten 380 × 285-Box → Mitte beibehalten
+    const m: ModelEl = { type: 'model', id: this.newId(), x: x + (380 - w) / 2, y: y + (285 - h) / 2, w, h, ms, label: `3D model ${this.countType('model') + 1}`, src, glb };
     this.addEl(m);
     return m;
   }
@@ -1121,12 +1166,12 @@ export class Engine {
         const text = await f.text();
         const j = JSON.parse(text);
         const external = [...(j.buffers ?? []), ...(j.images ?? [])].some((x: any) => typeof x.uri === 'string' && !x.uri.startsWith('data:'));
-        if (external) throw new Error('Diese glTF-Datei verweist auf externe Dateien. Bitte als GLB exportieren.');
+        if (external) throw new Error('This glTF file references external files. Please export it as GLB.');
         buf = new TextEncoder().encode(text).buffer as ArrayBuffer;
       } else if (MODEL_EXT.test(f.name)) {
-        if (!this.convertModel) throw new Error('OBJ und USD brauchen den Prompt-Server zum Umwandeln.');
+        if (!this.convertModel) throw new Error('OBJ and USD need the prompt server for conversion.');
         buf = await this.convertModel(f);
-      } else throw new Error(`Format nicht unterstützt: ${f.name}`);
+      } else throw new Error(`Format not supported: ${f.name}`);
       const ms = await this.viewer.loadGLB(buf.slice(0));
       const glb = /\.glb$/i.test(f.name) || !/\.gltf$/i.test(f.name) ? buf : await this.viewer.exportParts(ms);
       const m = this.addModelFrom(ms, w.x - 190, w.y - 142, '', glb);
@@ -1135,10 +1180,19 @@ export class Engine {
       this.onTool?.('select');
       return m.id;
     } catch (err) {
-      this.onError?.('Datei konnte nicht geladen werden', err instanceof Error ? err.message : String(err));
+      this.onError?.('Could not load the file', err instanceof Error ? err.message : String(err));
       return null;
     }
   }
+
+  /** Merkt sich das KI-Studio-Projekt eines Modells (für „Im Studio bearbeiten“). */
+  setModelStudio(id: number, project: string) {
+    const e = this.byId(id);
+    if (e?.type !== 'model') return;
+    e.studio = project;
+    this.onChange?.();
+  }
+  modelStudio(id: number) { const e = this.byId(id); return e?.type === 'model' ? e.studio ?? null : null; }
 
   addModel(x?: number, y?: number) {
     const w = this.toWorld({ x: this.W / 2, y: this.H / 2 });
@@ -1275,9 +1329,12 @@ export class Engine {
       ctx.fillStyle = '#fff';
       ctx.strokeStyle = 'rgba(105,101,219,0.8)';
       ctx.lineWidth = 1.25 / c.z;
-      ctx.beginPath();
-      ctx.arc(b[2], b[3], h / 2, 0, 7);
-      ctx.fill(); ctx.stroke();
+      const pd = 5 / c.z;
+      for (const [x, y] of [[b[0] - pd, b[1] - pd], [b[2] + pd, b[1] - pd], [b[0] - pd, b[3] + pd], [b[2] + pd, b[3] + pd]]) {
+        ctx.beginPath();
+        ctx.roundRect(x - h / 2, y - h / 2, h, h, 2.5 / c.z);
+        ctx.fill(); ctx.stroke();
+      }
       ctx.restore();
     }
     if (this.marquee) {

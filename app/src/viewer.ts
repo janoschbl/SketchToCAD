@@ -176,6 +176,37 @@ export class Viewer {
     return { laenge: Math.max(s.x, s.z), breite: Math.min(s.x, s.z), hoehe: s.y };
   }
 
+  /**
+   * Enger Rahmen: projiziert (eine Stichprobe der) Eckpunkte mit der aktuellen Kameradrehung und liefert
+   * Seitenverhältnis der Silhouette und den Kameraabstand, bei dem das Modell die Box zu `fill` ausfüllt.
+   * So umschließt die Box im Canvas das Modell statt viel leerem Hintergrund.
+   */
+  tightFrame(ms: ModelScene, fill = 0.86): { aspect: number; dist: number } {
+    const D = 8;
+    const cam = new THREE.PerspectiveCamera(ms.camera.fov, 1, 0.01, 500);
+    const { yaw, pitch, target } = ms;
+    cam.position.set(target.x + D * Math.cos(pitch) * Math.sin(yaw), target.y + D * Math.sin(pitch), target.z + D * Math.cos(pitch) * Math.cos(yaw));
+    cam.lookAt(target);
+    cam.updateMatrixWorld(true);
+    ms.root.updateMatrixWorld(true);
+    let x = 0, y = 0;
+    const v = new THREE.Vector3();
+    ms.root.traverse((o: any) => {
+      const pos = o.isMesh && o.visible ? o.geometry?.attributes?.position : null;
+      if (!pos) return;
+      const step = Math.max(1, Math.floor(pos.count / 4000));
+      for (let i = 0; i < pos.count; i += step) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).project(cam);
+        x = Math.max(x, Math.abs(v.x)); y = Math.max(y, Math.abs(v.y));
+      }
+    });
+    if (!(x > 0 && y > 0)) return { aspect: 4 / 3, dist: ms.dist };
+    const aspect = Math.min(2.2, Math.max(0.6, x / y));
+    // NDC-Ausdehnung skaliert ~ 1/Abstand; Höhe füllt `fill`, die Breite dank passendem Seitenverhältnis ebenso
+    const need = Math.max(y, x / aspect);
+    return { aspect, dist: Math.max(1.5, D * (need / fill)) };
+  }
+
   /** Reine Darstellung: Modell zentrieren und auf 3,5 Einheiten normieren (die Geometrie bleibt in Metern). */
   refit(ms: ModelScene) {
     const box = this.localBox(ms);

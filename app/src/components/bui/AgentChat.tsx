@@ -61,7 +61,7 @@ function Answer({ frage, pick, onAnswer, onStartPick, onRemovePick, onCancel }: 
   onCancel: () => void;
 }) {
   const opts = frage.typ === 'ja_nein' && !frage.optionen.length
-    ? [{ id: 'ja', label: 'Ja' }, { id: 'nein', label: 'Nein' }]
+    ? [{ id: 'ja', label: 'Yes' }, { id: 'nein', label: 'No' }]
     : frage.optionen;
   const startIdx = Math.max(0, opts.findIndex((o) => o.id === frage.standard));
   const [active, setActive] = useState(startIdx);
@@ -117,16 +117,16 @@ function Answer({ frage, pick, onAnswer, onStartPick, onRemovePick, onCancel }: 
               {o.label}
             </Chip>
           ))}
-          {frage.mehrfach && <Chip on onClick={confirmMulti}>Übernehmen</Chip>}
+          {frage.mehrfach && <Chip on onClick={confirmMulti}>Apply</Chip>}
         </>
       )}
 
       {frage.typ === 'text' && (
         <form className="flex w-full justify-end gap-1.5" onSubmit={(e) => { e.preventDefault(); if (text.trim()) onAnswer({ rolle: 'nutzer', text: text.trim() }); }}>
           {opts.map((o) => <Chip key={o.id} onClick={() => onAnswer({ rolle: 'nutzer', text: o.label, teile: o.teile ?? null, wert: o.id })}>{o.label}</Chip>)}
-          <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }} placeholder="Antwort…"
+          <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }} placeholder="Answer…"
             className="h-7 min-w-0 flex-1 rounded-full bg-surface px-3 text-[12.5px] text-ink shadow-raised outline-none placeholder:text-ink-3" />
-          <Chip on onClick={() => text.trim() && onAnswer({ rolle: 'nutzer', text: text.trim() })}>Senden</Chip>
+          <Chip on onClick={() => text.trim() && onAnswer({ rolle: 'nutzer', text: text.trim() })}>Send</Chip>
         </form>
       )}
 
@@ -135,8 +135,8 @@ function Answer({ frage, pick, onAnswer, onStartPick, onRemovePick, onCancel }: 
           <div className="flex items-center gap-1.5 rounded-full bg-accent-tint px-3 py-1.5 text-[12px] text-accent-ink">
             <IconClick size={14} stroke={1.9} />
             {frage.typ === 'teil'
-              ? `Klick ${frage.mehrfach ? 'die Teile' : 'das Teil'} im Modell an`
-              : 'Klick ein anderes Modell auf dem Canvas an'}
+              ? `Click ${frage.mehrfach ? 'the parts' : 'the part'} on the model`
+              : 'Click another model on the canvas'}
           </div>
           <div className="flex flex-wrap justify-end gap-1.5">
             {opts.map((o) => <Chip key={o.id} onClick={() => onAnswer({ rolle: 'nutzer', text: o.label, teile: o.teile ?? null, wert: o.id })}>{o.label}</Chip>)}
@@ -144,7 +144,7 @@ function Answer({ frage, pick, onAnswer, onStartPick, onRemovePick, onCancel }: 
               <span key={p.key} className="flex h-7.5 items-center gap-1 rounded-full bg-surface pr-1 pl-3 text-[12.5px] text-ink shadow-raised" style={{ animation: `pop-in 180ms ${SPRING} both` }}>
                 {frage.typ === 'modell' && <IconBox size={13} stroke={1.8} className="text-ink-3" />}
                 {p.label}
-                <button type="button" aria-label={`${p.label} entfernen`} onClick={() => onRemovePick(p.key)} className="flex size-5.5 items-center justify-center rounded-full text-ink-3 hover:bg-hover hover:text-ink"><IconX size={11} stroke={2.4} /></button>
+                <button type="button" aria-label={`Remove ${p.label}`} onClick={() => onRemovePick(p.key)} className="flex size-5.5 items-center justify-center rounded-full text-ink-3 hover:bg-hover hover:text-ink"><IconX size={11} stroke={2.4} /></button>
               </span>
             ))}
             <Chip on onClick={() => {
@@ -153,7 +153,7 @@ function Answer({ frage, pick, onAnswer, onStartPick, onRemovePick, onCancel }: 
                 ? { rolle: 'nutzer', text: pickItems.map((p) => p.label).join(', '), teile: pickItems.map((p) => p.key).join(',') }
                 : { rolle: 'nutzer', text: pickItems[0].label, modell: pickItems[0].label });
             }}>
-              <IconCheck size={13} stroke={2.5} /> Bestätigen
+              <IconCheck size={13} stroke={2.5} /> Confirm
             </Chip>
           </div>
         </div>
@@ -163,23 +163,23 @@ function Answer({ frage, pick, onAnswer, onStartPick, onRemovePick, onCancel }: 
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {opts.map((o) => <Chip key={o.id} onClick={() => onAnswer({ rolle: 'nutzer', text: o.label, teile: o.teile ?? null, wert: o.id })}>{o.label}</Chip>)}
           {SWATCHES.map((c) => (
-            <button key={c} type="button" aria-label={c} onClick={() => onAnswer({ rolle: 'nutzer', text: `Farbe ${c}`, wert: c })}
+            <button key={c} type="button" aria-label={c} onClick={() => onAnswer({ rolle: 'nutzer', text: `Color ${c}`, wert: c })}
               className="size-7 rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12),0_2px_6px_rgba(20,20,40,0.12)] transition-transform hover:scale-110 active:scale-95" style={{ background: c }} />
           ))}
-          <label className="relative size-7 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12)]" style={{ background: `conic-gradient(red, yellow, lime, cyan, blue, magenta, red)` }} title="Eigene Farbe">
+          <label className="relative size-7 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12)]" style={{ background: `conic-gradient(red, yellow, lime, cyan, blue, magenta, red)` }} title="Custom color">
             <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="absolute -inset-2 size-12 cursor-pointer opacity-0" />
           </label>
-          <Chip on onClick={() => onAnswer({ rolle: 'nutzer', text: `Farbe ${color}`, wert: color })}>
-            <span className="size-3.5 rounded-full ring-1 ring-white/70" style={{ background: color }} /> Übernehmen
+          <Chip on onClick={() => onAnswer({ rolle: 'nutzer', text: `Color ${color}`, wert: color })}>
+            <span className="size-3.5 rounded-full ring-1 ring-white/70" style={{ background: color }} /> Apply
           </Chip>
         </div>
       )}
 
       {frage.typ === 'zahl' && (
         <form className="flex items-center gap-1.5" onSubmit={(e) => { e.preventDefault(); if (Number.isFinite(numVal) && num.trim()) onAnswer({ rolle: 'nutzer', text: `${num.trim()} ${unit}`, wert: { wert: numVal, einheit: unit } }); }}>
-          <input ref={inputRef} value={num} onChange={(e) => setNum(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }} inputMode="decimal" placeholder="Wert"
+          <input ref={inputRef} value={num} onChange={(e) => setNum(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }} inputMode="decimal" placeholder="Value"
             className="h-7.5 w-24 rounded-full bg-surface px-3 text-right text-[12.5px] text-ink tabular-nums shadow-raised outline-none placeholder:text-ink-3" />
-          <select value={unit} onChange={(e) => setUnit(e.target.value)} className="h-7.5 rounded-full bg-surface px-2 text-[12.5px] text-ink shadow-raised outline-none" aria-label="Einheit">
+          <select value={unit} onChange={(e) => setUnit(e.target.value)} className="h-7.5 rounded-full bg-surface px-2 text-[12.5px] text-ink shadow-raised outline-none" aria-label="Unit">
             {(frage.einheit && !UNITS.includes(frage.einheit) ? [frage.einheit, ...UNITS] : UNITS).map((u) => <option key={u}>{u}</option>)}
           </select>
           <Chip on onClick={() => { if (Number.isFinite(numVal) && num.trim()) onAnswer({ rolle: 'nutzer', text: `${num.trim()} ${unit}`, wert: { wert: numVal, einheit: unit } }); }}>OK</Chip>
@@ -292,17 +292,17 @@ export default function AgentChat({ items, frage, busy, pick, title = 'Agent', o
         onPointerCancel={onUp}
         onDoubleClick={() => setPos((p) => ({ ...p, min: !p.min }))}
         className={`flex h-9 shrink-0 touch-none items-center gap-1.5 pr-1.5 pl-2.5 ${dragging ? 'cursor-grabbing' : 'cursor-grab'} ${pos.min ? '' : 'border-b border-black/5'}`}
-        title="Ziehen zum Verschieben · Doppelklick klappt ein"
+        title="Drag to move · double-click to collapse"
       >
         <IconGripVertical size={14} stroke={1.8} className="shrink-0 text-ink-3" />
         <IconSparkles size={13} stroke={2} className="shrink-0 text-[#7c5cff]" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">{title}</span>
-        {busy && <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-[#7c5cff]" aria-label="Agent arbeitet" />}
-        {pos.min && frage && <span className="shrink-0 rounded-full bg-accent-tint px-1.5 text-[10.5px] text-accent-ink">Frage</span>}
-        <button type="button" aria-label={pos.min ? 'Chat aufklappen' : 'Chat einklappen'} onClick={() => setPos((p) => ({ ...p, min: !p.min }))} className={iconBtn}>
+        {busy && <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-[#7c5cff]" aria-label="Agent working" />}
+        {pos.min && frage && <span className="shrink-0 rounded-full bg-accent-tint px-1.5 text-[10.5px] text-accent-ink">Question</span>}
+        <button type="button" aria-label={pos.min ? 'Expand chat' : 'Collapse chat'} onClick={() => setPos((p) => ({ ...p, min: !p.min }))} className={iconBtn}>
           {pos.min ? <IconChevronDown size={13} stroke={2.2} /> : <IconMinus size={13} stroke={2.2} />}
         </button>
-        <button type="button" aria-label="Verlauf schließen" onClick={onClose} className={iconBtn}>
+        <button type="button" aria-label="Close history" onClick={onClose} className={iconBtn}>
           <IconX size={12} stroke={2.4} />
         </button>
       </div>

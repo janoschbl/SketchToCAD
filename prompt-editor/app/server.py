@@ -21,7 +21,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import cad_sandbox, demo, geometry, logos, model_io, planner, surfaces, tools
+from . import cad_sandbox, demo, geometry, logos, model_io, planner, studio_agent, surfaces, tools
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -466,6 +466,26 @@ def edit_glb(request: Request, datei: UploadFile = File(...), auftrag: str = For
     import_model(sid, suffix, data, f"Hauptapp: {auftrag[:60]}")
     return run_edit(sid, auftrag, ausgewaehlt, modell, raw, image_url, kontext,
                     {"modellname": modellname or None, "glb_bytes": len(data), "ansicht_bytes": view_bytes})
+
+
+@app.post("/api/studio/plan")
+async def studio_plan(request: Request):
+    """KI-Studio: Wunsch in Worten → Bearbeitungsschritte (palette | restyle | replace | delete) für den Heim-PC."""
+    check_rate(request)
+    body = await request.json()
+    if not (body.get("prompt") or "").strip():
+        raise HTTPException(400, "Describe what should change.")
+    if not body.get("parts"):
+        raise HTTPException(400, "No model yet.")
+    for key in ("image", "labeled"):
+        if body.get(key) and (not str(body[key]).startswith("data:image/") or len(body[key]) > 8_000_000):
+            raise HTTPException(400, "Invalid image.")
+    try:
+        out = studio_agent.plan(body, body.get("model") or None)
+    except Exception as e:  # noqa: BLE001 – Fehler des KI-Anbieters lesbar zurückgeben
+        raise HTTPException(502, f"AI planning failed: {e}")
+    out["modus"] = planner.mode()
+    return out
 
 
 @app.post("/api/convert")

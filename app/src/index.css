@@ -104,3 +104,19 @@
 }
 
 html, body, #app { height: 100%; margin: 0; overflow: hidden; background: #fff; color: var(--foreground); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+
+/* KI-Werkzeuge: ganz leichter Pastell-Regenbogen hinter jedem Icon; ausgewählt etwas kräftiger */
+.ai-tool { position: relative; isolation: isolate; }
+.ai-tool::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  z-index: -1;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #ffd1dc, #ffe8c7 25%, #fff6c2 42%, #d4f7e3 60%, #d3ecff 78%, #e6dcff);
+  opacity: .38;
+  transition: opacity .15s, inset .15s;
+}
+.ai-tool:hover::before { opacity: .6; }
+.ai-tool[aria-pressed="true"]::before { inset: 1px; opacity: 1; }
+.ai-tool[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(124,92,255,.22); }
