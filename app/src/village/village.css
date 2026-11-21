@@ -600,3 +600,7 @@ body.drowning .vsketch { opacity: 0; pointer-events: none; }
 .vdrown.sliding .vdrown-speed { opacity: 1; }
 @keyframes vdrown-speed { from { transform: rotate(0deg) scale(1); } to { transform: rotate(4deg) scale(1.04); } }
 @media (prefers-reduced-motion: reduce) { .vdrown-speed { animation: none; } }
+
+/* Claim im Intro: „gamble.“ in derselben Schrift und Farbe wie der Rest (nur die gezogene Unterstreichung bleibt) */
+.vtitle .accent, .vhero .accent { font: inherit; color: inherit; transform: none; line-height: inherit; }
+.vtitle .swoosh { bottom: -0.12em; height: 0.22em; }
