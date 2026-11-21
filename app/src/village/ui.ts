@@ -110,6 +110,9 @@ function spiral(width: number) {
 }
 
 /** Handgezeichnete Unterstreichung als SVG (wird beim Einblenden „gezogen“) */
+/** Pipeline-Zeile: USD-Export und Zielprogramme (nur Namen, keine fremden Logos) */
+const TOOLS = `<p class="vtools"><span class="vtools-usd">USD</span><span class="vtools-arrow">→</span><span>Houdini</span><span>Unreal</span><span>Blender</span></p>`;
+
 const SWOOSH = `<svg class="swoosh" viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 15 C 60 6, 120 20, 180 11 S 270 8, 296 13" pathLength="1"/></svg>`;
 
 export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onWell?: () => void; onOpenChange?: (open: boolean) => void; claim?: ClaimVariant }): VillageUI {
@@ -120,7 +123,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   title.setAttribute('aria-live', 'polite');
   title.innerHTML = variant === 'hand'
     ? `<h1 class="vtitle-h"><span class="vtitle-reveal">${CLAIM}</span></h1><p class="vtitle-sub">${SUBLINE}</p>`
-    : `<h1 class="vtitle-h">Gestalten statt <span class="accent">würfeln.${SWOOSH}</span></h1><p class="vtitle-sub">${SUBLINE}</p>`;
+    : `<p class="vtitle-kicker">3D-Assets für Film &amp; Postproduktion</p><h1 class="vtitle-h">Gestalten statt <span class="accent">würfeln.${SWOOSH}</span></h1><p class="vtitle-sub">${SUBLINE}</p>${TOOLS}`;
   document.body.appendChild(title);
 
   // ---------- Banner nach der Landung: Claim + wichtigste Handlung
@@ -182,7 +185,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   // ---------- Leiste oben
   const bar = el('header', 'vbar');
   bar.innerHTML = `
-    <button class="vbar-logo" data-act="well" aria-label="Zum Brunnen">Sketch<span>To</span>CAD</button>
+    <button class="vbar-logo" data-act="well" aria-label="Zum Brunnen"><span class="vbar-word">Sketch<span>To</span>CAD</span><small>3D-Assets für Film · USD-Export</small></button>
     <nav class="vbar-nav">
       <button data-act="project">Projekt</button>
       <a href="mailto:${CONTACT_MAIL}">Kontakt</a>
@@ -284,7 +287,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       <li class="hw"><b>Skizzieren</b> – wie auf Papier, nur unendlich groß.</li>
       <li class="hw"><b>Dazu sagen</b>, was die Skizze nicht zeigt: „Holz, alt, 10 cm länger“.</li>
       <li class="hw"><b>Teile anpassen</b> – einzeln und auf den Zentimeter.</li>
-      <li class="hw"><b>Ab in die Pipeline</b> – als USD, mit dem Art Department.</li>
+      <li class="hw"><b>Ab in die Szene</b> – als USD direkt in Houdini, Unreal oder Blender.</li>
     </ol>
     <div class="pad-links">
       <button class="pad-link main" data-act="tool" data-house="Werkstatt"><span class="hw">→ Jetzt 3D-Modell erstellen!</span>${CIRCLED}</button>
@@ -298,6 +301,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     <p class="hw">Prompten geht schnell, trifft aber selten genau das, was du im Kopf hast. Zeichnen ist genau, aber langsam bis zum fertigen 3D-Modell.</p>
     <p class="hw">Wir verbinden beides: Du skizzierst, sagst dazu, was du willst – und bekommst ein 3D-Modell, das du Teil für Teil weiterbearbeitest.</p>
     <p class="hw"><b>Für wen?</b> Filmproduktionen und Postproduktion, die Hinter- und Vordergründe bauen – gemeinsam mit dem Art Department.</p>
+    <p class="hw"><b>Was kommt raus?</b> Saubere 3D-Elemente mit benannten Teilen und echten Maßen – als USD, bereit für Houdini, Unreal und Blender.</p>
     <div class="pad-links">
       <button class="pad-link main" data-act="well"><span class="hw">→ So funktioniert’s</span>${CIRCLED}</button>
       <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Schreib uns</span>${UNDERLINED}</a>
