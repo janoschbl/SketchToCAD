@@ -57,8 +57,8 @@ export interface SketchPlan { segs: Float32Array; keys: Float32Array; count: num
  * Alle Striche wachsen GLEICHZEITIG (sortiert nach "Zeichen-Zeitpunkt"), grob von unten nach oben –
  * wie das Wireframe, das sich bei igloo.inc zusammenzieht, nur in Stift-Optik.
  */
-export function buildSketch(edges: Edge[], sequential = false): SketchPlan {
-  if (sequential) edges = penOrder(edges);
+export function buildSketch(edges: Edge[], sequential = false, keepOrder = false): SketchPlan {
+  if (sequential && !keepOrder) edges = penOrder(edges);
   let tCursor = 0;
   const penPos = edges.length ? edges[0][0].clone() : new V();
   let minY = Infinity, maxY = -Infinity;
@@ -165,7 +165,7 @@ export interface Timing {
 }
 export const FAST: Timing = { sketch: 0.7, solid0: 0.5, solid: 0.85, fade0: 1.15, fade: 0.55 };
 
-interface Opts { timing?: Timing; sequential?: boolean; width?: number; /** nur die längsten N Kanten zeichnen (weniger Striche) */ maxEdges?: number; minLen?: number }
+interface Opts { timing?: Timing; sequential?: boolean; width?: number; /** nur die längsten N Kanten zeichnen (weniger Striche) */ maxEdges?: number; minLen?: number; /** eigene Strichliste (in dieser Reihenfolge gezeichnet) statt der Modellkanten */ edges?: Edge[] }
 interface Running { obj: SketchObj; plan: SketchPlan; ink: LineSegments2; t: number; tm: Timing; seq: boolean; end: number }
 
 /** Startet beliebig viele Objekte parallel: Skizze → Modell → Tinte verblasst. */
@@ -275,10 +275,10 @@ export class Generator {
     for (let k = 0; k < this.maxStartsPerFrame && this.pending.length; k++) {
       const { obj, opts } = this.pending.shift()!;
       const seq = !!opts.sequential;
-      let edges = edgesOf(obj.group);
+      let edges = opts.edges ?? edgesOf(obj.group);
       if (opts.minLen) edges = edges.filter(([a, b]) => a.distanceTo(b) >= opts.minLen!);
       if (opts.maxEdges && edges.length > opts.maxEdges) edges = edges.sort((x, y) => y[0].distanceTo(y[1]) - x[0].distanceTo(x[1])).slice(0, opts.maxEdges);
-      const plan = buildSketch(edges, seq);
+      const plan = buildSketch(edges, seq, !!opts.edges);
       obj.strokes = plan.edges;
       const ink = makeInk(plan, opts.width);
       this.scene.add(ink);

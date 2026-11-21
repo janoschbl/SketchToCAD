@@ -251,8 +251,50 @@ const stickers = [
 stickers.forEach((m) => scene.add(m)); // Brunnen steht im Ursprung
 let stickerT = -1;
 const letters = objs.filter((o) => /^L\d+$/.test(o.id));
-// Intro gestrafft (21.11.): ~16 s statt ~30 s, Brunnen mit deutlich weniger Strichen
-const HERO = { sketch: 1.5, solid0: 1.25, solid: 0.95, fade0: 1.6, fade: 0.6 };
+// Intro gestrafft (21.11.): ~18 s statt ~30 s. Brunnen: eigene, reduzierte Strichliste inkl. Sockel;
+// die Skizze ist komplett fertig, bevor das Modell erscheint (solid0 > sketch).
+const HERO = { sketch: 2.5, solid0: 2.75, solid: 0.95, fade0: 3.0, fade: 0.6 };
+
+/** Brunnen wie von Hand skizziert: Sockel (Kreise + Umriss), Pfosten, Kurbel, Dach, Seil und Eimer. */
+function wellSketchEdges(camYaw: number): [THREE.Vector3, THREE.Vector3][] {
+  const E: [THREE.Vector3, THREE.Vector3][] = [];
+  const P = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const arc = (r: number, y: number, a0: number, a1: number, n: number) => {
+    for (let i = 0; i < n; i++) {
+      const u0 = a0 + ((a1 - a0) * i) / n, u1 = a0 + ((a1 - a0) * (i + 1)) / n;
+      E.push([P(Math.sin(u0) * r, y, Math.cos(u0) * r), P(Math.sin(u1) * r, y, Math.cos(u1) * r)]);
+    }
+  };
+  const line = (a: THREE.Vector3, b: THREE.Vector3) => E.push([a, b]);
+  const L = camYaw - Math.PI / 2, R = camYaw + Math.PI / 2;     // Umrisskanten aus Kamerasicht
+  // Sockel: Boden-Bogen (vorne), zwei Umrisslinien, oberer Rand rundum
+  arc(1.08, 0.02, L, R, 12);
+  line(P(Math.sin(R) * 1.08, 0.02, Math.cos(R) * 1.08), P(Math.sin(R) * 1.0, 0.86, Math.cos(R) * 1.0));
+  arc(1.09, 0.97, R, R + Math.PI * 2, 20);
+  line(P(Math.sin(L) * 1.0, 0.86, Math.cos(L) * 1.0), P(Math.sin(L) * 1.08, 0.02, Math.cos(L) * 1.08));
+  arc(1.06, 0.86, L, R, 10);
+  // Pfosten: je zwei Kanten zur Kamera hin
+  const px = Math.cos(camYaw) * 0.08, pz = -Math.sin(camYaw) * 0.08;
+  for (const sx of [-1, 1]) {
+    const cx = sx * 0.88;
+    line(P(cx - px, 0.99, -pz), P(cx - px, 2.76, -pz));
+    line(P(cx + px, 2.76, pz), P(cx + px, 0.99, pz));
+  }
+  // Kurbelwelle, Seil, Eimer
+  line(P(-0.98, 2.2, 0), P(0.98, 2.2, 0));
+  line(P(0, 2.17, 0), P(0, 1.47, 0));
+  arc(0.2, 1.45, 0, Math.PI * 2, 8);
+  line(P(0.2, 1.45, 0), P(0.15, 1.15, 0));
+  line(P(-0.15, 1.15, 0), P(-0.2, 1.45, 0));
+  // Dach: Traufen, vorderer Giebel, First
+  const zf = Math.cos(camYaw) >= 0 ? 0.8 : -0.8;
+  line(P(-0.84, 2.66, -0.8), P(-0.84, 2.66, 0.8));
+  line(P(-0.84, 2.66, zf), P(0, 3.3, zf));
+  line(P(0, 3.3, zf), P(0.84, 2.66, zf));
+  line(P(0.84, 2.66, 0.8), P(0.84, 2.66, -0.8));
+  line(P(0, 3.3, -0.85), P(0, 3.3, 0.85));
+  return E;
+}
 const T_IN0 = 0.25, T_DRAW = 0.95, T_SKETCHED = T_DRAW + HERO.sketch, T_WELL = T_DRAW + HERO.fade0 + HERO.fade;
 const T_TAP = T_WELL + 0.15, T_BURST = T_TAP + 0.4;
 const WAVE_DUR = 5.2, R_A = 44;                       // Welle beschleunigt bis R_A, dann Wumm
@@ -336,6 +378,7 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = e.clientX - last.x, dy = e.clientY - last.y;
   last.set(e.clientX, e.clientY);
   press.moved = Math.max(press.moved, Math.hypot(e.clientX - press.x, e.clientY - press.y));
+  if (press.moved > 60) ui.questDone('look');
   // Umsehen per Ziehen: Welt folgt dem Cursor
   fp.yawT += dx * 0.0042;
   fp.pitchT = THREE.MathUtils.clamp(fp.pitchT + dy * 0.0036, -1.15, 1.15);
@@ -351,7 +394,7 @@ canvas.addEventListener('pointerup', (e) => {
   setHover(null);
   sfx.pop(1.1);
   if (o.id === 'well') { wellSeen = true; ui.openWell(); }
-  else ui.openTool(o.label ?? 'Werkstatt');
+  else { visited.add(o.id); ui.openTool(o.label ?? 'Werkstatt'); }
 });
 canvas.addEventListener('pointercancel', endDrag);
 
@@ -461,7 +504,7 @@ function frame(fixedDt?: number) {
 
   // ---------- Pinsel & Brunnen
   if (t >= T_IN0 && !twinkled) { twinkled = true; sfx.twinkle(); }
-  if (t >= T_DRAW && well.state === 'hidden') gen.start(well, { timing: HERO, sequential: true, width: 3.4, minLen: 0.3, maxEdges: 34 });
+  if (t >= T_DRAW && well.state === 'hidden') gen.start(well, { timing: HERO, sequential: true, width: 3.4, edges: wellSketchEdges(0.75 - T_DRAW * 0.035) });
   const firstPen = V3(0, 0.2, 1.1);
   if (t < T_DRAW) {
     const k = easeInOutSine((t - T_IN0) / (T_DRAW - T_IN0));
@@ -614,6 +657,7 @@ function frame(fixedDt?: number) {
       const n = Math.max(1, Math.hypot(kx, kz));
       const fx = -Math.sin(fp.yaw), fz = -Math.cos(fp.yaw), rx = Math.cos(fp.yaw), rz = -Math.sin(fp.yaw);
       moveFp(((fx * kz + rx * kx) / n) * speed, ((fz * kz + rz * kx) / n) * speed);
+      if (Math.hypot(fp.pos.x - PLAZA_POS.x, fp.pos.z - PLAZA_POS.z) > 2.5) ui.questDone('walk');
       fp.bob += speed * 2.6;
     }
     fp.yaw += (fp.yawT - fp.yaw) * (1 - Math.exp(-dt * 14));
@@ -640,8 +684,9 @@ function frame(fixedDt?: number) {
   // Claim: Titelkarte, während die Welt entsteht (bis kurz nach Beginn von Flug 1); Banner nach der Landung
   const claimOn = t >= T_BURST + 0.7 && t < T_FLY1 + 0.5 && dash.t < 0;
   if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
-  if (t >= T_FP + 0.4 && dash.t < 0) ui.showHero();
+  if (t >= T_FP + 0.4 && dash.t < 0) { ui.showHero(); ui.showQuest(); }
   updateHint(t);
+  updateMarks();
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(look);
   camera.updateMatrixWorld();
@@ -810,6 +855,51 @@ function updateHint(t: number) {
     glowObj(well, null); well.group.userData.pulsed = false;
   }
   hint.classList.toggle('on', show);
+}
+
+// Quest-Markierungen über den Häusern (wie Quest-Geber im Spiel); verschwinden nach dem Besuch
+const houseObjs = objs.filter((o) => o.id.startsWith('house'));
+const visited = new Set<string>();
+const marks = houseObjs.map((o) => {
+  const m = document.createElement('button');
+  m.className = 'vmark';
+  m.type = 'button';
+  m.setAttribute('aria-label', `${o.label}: Werkstatt öffnen`);
+  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>!</b><em>${o.label}</em></span>`;
+  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); ui.openTool(o.label ?? 'Werkstatt'); });
+  document.body.appendChild(m);
+  return { o, m, occluded: false };
+});
+const markPos = V3(0, 0, 0), toMark = V3(0, 0, 0);
+let markFrame = 0;
+function updateMarks() {
+  const active = free && dash.t < 0 && !ui.isOpen();
+  const occl = active && markFrame++ % 12 === 0;
+  const solid = occl ? objs.filter((o) => o.state === 'done' && o.group.visible).map((o) => o.group) : [];
+  for (const k of marks) {
+    let show = false;
+    if (active && !visited.has(k.o.id)) {
+      markPos.set(k.o.center.x, k.o.maxY + 0.7, k.o.center.z);
+      const dist = camera.position.distanceTo(markPos);
+      if (occl) {
+        // verdeckt? Strahl von der Kamera zur Markierung – trifft er zuerst etwas anderes, ausblenden
+        toMark.copy(markPos).sub(camera.position).normalize();
+        ray.set(camera.position, toMark); ray.far = dist;
+        const hit = ray.intersectObjects(solid, true)[0];
+        let n: THREE.Object3D | null = hit?.object ?? null;
+        while (n && !n.userData.obj) n = n.parent;
+        k.occluded = !!hit && n?.userData.obj !== k.o && hit.distance < dist - 1.2;
+        ray.far = 45;
+      }
+      markPos.project(camera);
+      show = markPos.z < 1 && Math.abs(markPos.x) < 0.96 && Math.abs(markPos.y) < 0.92 && dist < 34 && !k.occluded;
+      if (show) {
+        const sc = THREE.MathUtils.clamp(13 / dist, 0.62, 1.15);
+        k.m.style.transform = `translate(${((markPos.x + 1) / 2) * innerWidth}px, ${((1 - markPos.y) / 2) * innerHeight}px) scale(${sc.toFixed(3)})`;
+      }
+    }
+    k.m.classList.toggle('on', show);
+  }
 }
 
 let hoverQueued = false;

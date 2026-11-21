@@ -10,12 +10,17 @@ export const SUBLINE = 'Prompten ist schnell. Zeichnen ist genau. SketchToCAD ve
 /** Design-Varianten für den Claim im Intro, umschaltbar per ?claim=titel|hand|unten */
 export type ClaimVariant = 'titel' | 'hand' | 'unten';
 
+export type QuestKey = 'look' | 'walk' | 'well' | 'house';
+
 export interface VillageUI {
   setMode(mode: 'intro' | 'village'): void;
   /** Claim im Intro ein-/ausblenden */
   introClaim(on: boolean): void;
   /** Banner nach der Landung (Claim + Button) */
   showHero(): void;
+  /** Ankunfts-Quest einblenden / Aufgabe abhaken */
+  showQuest(): void;
+  questDone(key: QuestKey): void;
   showHover(label: string | null, x?: number, y?: number): void;
   openWell(): void;
   openTool(house: string): void;
@@ -56,16 +61,47 @@ function scribble(root: HTMLElement) {
   });
 }
 
+/** Gerissene, leicht ausgefranste Papierkante als clip-path (px), mit zwei Eselsohr-Ecken und einem Einriss */
+function tornClip(w: number, h: number, ear = 56, earBL = 38, notch = true) {
+  const pts: string[] = [];
+  const P = (x: number, y: number) => pts.push(`${x.toFixed(1)}px ${y.toFixed(1)}px`);
+  const j = (a: number) => Math.random() * a;
+  for (let x = 0; x < w - ear; x += 6) P(x, j(1.2));
+  P(w - ear, j(1)); P(w, ear);
+  const ny = h * (0.4 + Math.random() * 0.2);
+  for (let y = ear; y < h; y += 6) {
+    if (notch && y >= ny && y < ny + 6) { P(w - 2, y); P(w - 13, y + 5); P(w - 3, y + 10); y += 6; continue; }
+    P(w - j(2.6), y);
+  }
+  for (let x = w; x > earBL; x -= 5) P(x, h - j(3.6) - (Math.random() < 0.06 ? 3 : 0));
+  P(earBL, h - j(1)); P(0, h - earBL);
+  for (let y = h - earBL; y > 0; y -= 6) P(j(2), y);
+  return `polygon(${pts.join(',')})`;
+}
+
+/** Zerknittertes Papier: Licht/Schatten aus einer Höhenkarte (Rauschen → Beleuchtung) */
+const crumple = (seed: number) => `<svg class="pad-crumple" aria-hidden="true"><filter id="crumple${seed}" x="0" y="0" width="100%" height="100%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.010 0.013" numOctaves="5" seed="${seed}"/>
+  <feDiffuseLighting lighting-color="#fff" surfaceScale="2.8" diffuseConstant="1.05"><feDistantLight azimuth="235" elevation="50"/></feDiffuseLighting>
+  <feComponentTransfer><feFuncR type="linear" slope="1.3" intercept="-0.5"/><feFuncG type="linear" slope="1.3" intercept="-0.5"/><feFuncB type="linear" slope="1.3" intercept="-0.5"/></feComponentTransfer>
+</filter><rect width="100%" height="100%" filter="url(#crumple${seed})"/></svg>`;
+
+/** Mit Rotstift umkreist / unterstrichen */
+const CIRCLED = `<svg class="pad-circle" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M30 20 C 70 4, 205 2, 270 15 C 302 23, 294 53, 248 61 C 178 71, 68 69, 24 56 C -2 47, 2 25, 42 13 C 76 5, 124 5, 158 8"/></svg>`;
+const UNDERLINED = `<svg class="pad-under" viewBox="0 0 240 14" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M3 9 C 40 3, 80 13, 122 7 S 200 4, 237 10"/></svg>`;
+
 /** Spiralbindung als SVG: Lochung im Papier + Metallschlaufe mit Glanz */
 function spiral(width: number) {
   const n = Math.max(8, Math.floor((width - 40) / 21));
   const gap = (width - 40) / n;
   let rings = '';
+  const bent = 2 + Math.floor(Math.random() * (n - 4));
   for (let i = 0; i < n; i++) {
-    const x = 20 + gap * (i + 0.5);
-    rings += `<ellipse cx="${x}" cy="31" rx="3.6" ry="3" fill="#1b1612"/>
+    const x = 20 + gap * (i + 0.5) + (Math.random() - 0.5) * 1.2;
+    const rot = (Math.random() - 0.5) * 7 + (i === bent ? 16 : 0);
+    rings += `<g transform="rotate(${rot.toFixed(1)} ${x.toFixed(1)} 31)"><ellipse cx="${x}" cy="31" rx="3.6" ry="3" fill="#1b1612"/>
       <path d="M${x - 2.4} 31 C ${x - 3.5} 14, ${x + 4} 3, ${x + 6} 9 S ${x + 3} 26, ${x + 1.5} 30" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="3.4" transform="translate(1.6 2.2)" filter="url(#ringShadow)"/>
-      <path d="M${x - 2.4} 31 C ${x - 3.5} 14, ${x + 4} 3, ${x + 6} 9 S ${x + 3} 26, ${x + 1.5} 30" fill="none" stroke="url(#wire)" stroke-width="2.8" stroke-linecap="round"/>`;
+      <path d="M${x - 2.4} 31 C ${x - 3.5} 14, ${x + 4} 3, ${x + 6} 9 S ${x + 3} 26, ${x + 1.5} 30" fill="none" stroke="url(#wire)" stroke-width="2.8" stroke-linecap="round"/></g>`;
   }
   return `<svg class="pad-spiral" viewBox="0 0 ${width} 40" width="${width}" height="40" aria-hidden="true">
     <defs><linearGradient id="wire" x1="0" y1="0" x2="1" y2="1">
@@ -105,6 +141,44 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     hero.classList.remove('on');
     bar.classList.add('with-cta');
   };
+  // ---------- Ankunfts-Quest (wie im Spiel): Aufgaben-Zettel + Steuerungshinweis
+  const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  const TASKS: [QuestKey, string, string][] = touch
+    ? [['look', 'Umsehen', 'mit dem Finger wischen'], ['walk', 'Herumlaufen', 'Joystick links unten'],
+       ['well', 'Brunnen antippen', 'so funktioniert’s'], ['house', 'Eine Werkstatt besuchen', 'ein Haus antippen']]
+    : [['look', 'Umsehen', 'Maus gedrückt ziehen'], ['walk', 'Herumlaufen', 'W A S D oder Pfeiltasten'],
+       ['well', 'Brunnen anklicken', 'so funktioniert’s'], ['house', 'Eine Werkstatt besuchen', 'ein Haus anklicken']];
+  const quest = el('aside', 'vquest');
+  quest.setAttribute('aria-label', 'Quest');
+  quest.innerHTML = `
+    <button class="vquest-tab" data-act="quest-toggle" aria-label="Quest ein-/ausklappen"><span>!</span> Quest</button>
+    <div class="vquest-body">
+      <p class="vquest-kicker">Quest</p>
+      <h3 class="vquest-h">Willkommen im Skizzendorf</h3>
+      <ul>${TASKS.map(([k, t, h]) => `<li data-q="${k}"><svg class="qbox" viewBox="0 0 24 24" aria-hidden="true"><path class="qframe" d="M4 5 C 9 3.5, 16 4.2, 20 4.6 C 20.5 10, 20 15, 19.6 20 C 14 20.4, 9 20.2, 4.4 19.6 C 3.8 14, 4 9, 4 5"/><path class="qtick" pathLength="1" d="M6 12 C 8 13.5, 9.5 15.5, 10.5 17.5 C 12.5 12, 16 7, 22 2.5"/></svg><span class="qt"><b>${t}</b><small>${h}</small></span></li>`).join('')}</ul>
+      <p class="vquest-done">Quest erfüllt! Viel Spaß beim Gestalten.</p>
+    </div>`;
+  document.body.appendChild(quest);
+  const keys = el('div', 'vkeys');
+  keys.innerHTML = touch
+    ? `<span class="vkeys-t">Joystick links unten: laufen · Wischen: umsehen</span>`
+    : `<span class="vkeys-wasd"><kbd class="k-w">W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span class="vkeys-t">laufen</span>
+       <span class="vkeys-mouse" aria-hidden="true"><i></i></span><span class="vkeys-t">ziehen: umsehen</span>
+       <span class="vkeys-t vkeys-click">Häuser &amp; Brunnen anklicken</span>`;
+  document.body.appendChild(keys);
+  const doneSet = new Set<QuestKey>();
+  let questShown = false;
+  function questDone(k: QuestKey) {
+    if (!questShown || doneSet.has(k)) return;
+    doneSet.add(k);
+    quest.querySelector(`[data-q="${k}"]`)?.classList.add('done');
+    if (doneSet.has('walk') && doneSet.has('look')) keys.classList.remove('on');
+    if (doneSet.size === TASKS.length) {
+      quest.classList.add('complete');
+      setTimeout(() => quest.classList.add('min'), 3500);
+    }
+  }
+
   // ---------- Leiste oben
   const bar = el('header', 'vbar');
   bar.innerHTML = `
@@ -166,22 +240,33 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     card.classList.toggle('pad', pad);
     card.innerHTML = pad
       ? `<div class="pad-board" aria-hidden="true"></div><div class="pad-sheet s2" aria-hidden="true"></div><div class="pad-sheet s1" aria-hidden="true"></div>
-         <div class="pad-paper"><div class="pad-ink">${html}</div><div class="pad-light" aria-hidden="true"></div></div>
+         <div class="pad-paper"><div class="pad-ink">${html}</div>${crumple(1 + Math.floor(Math.random() * 90))}<div class="pad-light" aria-hidden="true"></div></div>
          <span class="ear ear-tr" aria-hidden="true"></span><span class="ear ear-bl" aria-hidden="true"></span>
          ${spiral(560)}<button class="vcard-x hw-x" data-act="close" aria-label="Schließen">×</button>`
       : `<button class="vcard-x" data-act="close" aria-label="Schließen">×</button>${html}`;
     if (pad) {
       scribble(card);
-      // Buttons gehören nicht aufs Papier: unter den Block setzen
-      const act = card.querySelector('.pad-actions'), small = card.querySelector('.pad-small');
-      if (act) card.appendChild(act);
-      if (small) card.appendChild(small);
+      requestAnimationFrame(() => fitPad());
     }
     veil.classList.add('on');
     setOpen('card');
     card.tabIndex = -1;
     card.focus({ preventScroll: true });
   }
+  /** Risskanten an die echte Größe anpassen und den Block so skalieren, dass er ohne Scrollen ins Fenster passt */
+  function fitPad() {
+    if (!card.classList.contains('pad')) return;
+    const paper = card.querySelector<HTMLElement>('.pad-paper');
+    if (!paper) return;
+    card.style.setProperty('--fit', '1');
+    const w = paper.offsetWidth, h = paper.offsetHeight;
+    paper.style.clipPath = tornClip(w, h);
+    card.querySelectorAll<HTMLElement>('.pad-sheet').forEach((sh) => (sh.style.clipPath = tornClip(w, h, 0, 0, false)));
+    const avail = innerHeight - (innerWidth < 600 ? 96 : 56), need = card.offsetHeight + 30;
+    card.style.setProperty('--fit', String(Math.min(1, avail / need)));
+  }
+  addEventListener('resize', () => { if (open === 'card') fitPad(); });
+
   function closeAll() {
     veil.classList.remove('on');
     if (shop.classList.contains('on')) {
@@ -198,15 +283,14 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     <ol class="pad-list">
       <li class="hw"><b>Skizzieren</b> – wie auf Papier, nur unendlich groß.</li>
       <li class="hw"><b>Dazu sagen</b>, was die Skizze nicht zeigt: „Holz, alt, 10 cm länger“.</li>
-      <li class="hw"><b>Teile anpassen</b> – Dach, Tür, Griff: einzeln und auf den Zentimeter.</li>
-      <li class="hw"><b>Ab in die Pipeline</b> – als USD, gemeinsam mit dem Art Department.</li>
+      <li class="hw"><b>Teile anpassen</b> – einzeln und auf den Zentimeter.</li>
+      <li class="hw"><b>Ab in die Pipeline</b> – als USD, mit dem Art Department.</li>
     </ol>
-    <p class="pad-ps hw">PS: Jedes Haus im Dorf ist eine Werkstatt – klick eins an!</p>
-    <p class="pad-small">Prototyp – das eigene Modell ist noch im Training.</p>
-    <div class="pad-actions">
-      <button class="vcta" data-act="tool" data-house="Werkstatt">Jetzt 3D-Modell erstellen</button>
-      <button class="vghost vghost-dark" data-act="replay">Intro nochmal ansehen</button>
-    </div>`;
+    <div class="pad-links">
+      <button class="pad-link main" data-act="tool" data-house="Werkstatt"><span class="hw">→ Jetzt 3D-Modell erstellen!</span>${CIRCLED}</button>
+      <button class="pad-link minor" data-act="replay"><span class="hw">Intro nochmal ansehen</span>${UNDERLINED}</button>
+    </div>
+    <p class="pad-pencil hw">(Prototyp – unser Modell lernt noch)</p>`;
 
   const PROJECT = `
     <p class="vcard-kicker">Über das Projekt</p>
@@ -235,6 +319,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     (u. a. Verantwortliche/r, Hosting und Server-Logs, Rechte der Betroffenen).</p>`;
 
   function openTool(house: string) {
+    if (house !== 'Werkstatt') questDone('house');
     heroShownAt = 0; collapseHero();
     veil.classList.remove('on');
     (shop.querySelector('.vshop-title') as HTMLElement).textContent = `Werkstatt · ${house}`;
@@ -250,7 +335,8 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     if (!t) { if (e.target === veil) closeAll(); return; }
     const act = t.dataset.act;
     if (act === 'close') closeAll();
-    else if (act === 'well') { opts.onWell?.(); showCard(WELL, true); }
+    else if (act === 'well') { opts.onWell?.(); questDone('well'); showCard(WELL, true); }
+    else if (act === 'quest-toggle') quest.classList.toggle('min');
     else if (act === 'hero-close') { heroShownAt = 0; collapseHero(); }
     else if (act === 'project') showCard(PROJECT);
     else if (act === 'imprint') showCard(IMPRINT);
@@ -272,7 +358,16 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       tip.style.transform = `translate(${Math.round(x + 16)}px, ${Math.round(y + 18)}px)`;
       tip.classList.add('on');
     },
-    openWell: () => showCard(WELL, true),
+    openWell: () => { questDone('well'); showCard(WELL, true); },
+    showQuest() {
+      if (questShown) return;
+      questShown = true;
+      quest.classList.add('on');
+      keys.classList.add('on');
+      setTimeout(() => keys.classList.remove('on'), 16000);
+      if (touch || innerWidth < 760) setTimeout(() => { if (!quest.classList.contains('complete')) quest.classList.add('min'); }, 9000);
+    },
+    questDone,
     introClaim(on) { title.classList.toggle('on', on); },
     showHero() {
       bar.classList.add('with-cta');
