@@ -350,7 +350,7 @@ canvas.addEventListener('pointerup', (e) => {
   if (!o) return;
   setHover(null);
   sfx.pop(1.1);
-  if (o.id === 'well') ui.openWell();
+  if (o.id === 'well') { wellSeen = true; ui.openWell(); }
   else ui.openTool(o.label ?? 'Werkstatt');
 });
 canvas.addEventListener('pointercancel', endDrag);
@@ -641,6 +641,7 @@ function frame(fixedDt?: number) {
   const claimOn = t >= T_BURST + 0.7 && t < T_FLY1 + 0.5 && dash.t < 0;
   if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
   if (t >= T_FP + 0.4 && dash.t < 0) ui.showHero();
+  updateHint(t);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(look);
   camera.updateMatrixWorld();
@@ -739,6 +740,7 @@ const ui = createUI({
   claim: (['titel', 'hand', 'unten'].includes(claimParam ?? '') ? claimParam : 'titel') as ClaimVariant,
   onJump: jumpToWell,
   onReplayIntro: () => location.reload(),
+  onWell: () => { wellSeen = true; },
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
     // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
@@ -767,21 +769,49 @@ function pick(x: number, y: number): SketchObj | null {
 }
 let hovered: SketchObj | null = null;
 const glow = new THREE.Color('#ff9a5a');
+/** Objekt warm aufleuchten lassen (null = Originalzustand) */
+function glowObj(obj: SketchObj, amount: number | null) {
+  obj.group.traverse((m) => {
+    const mat = (m as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+    if (!(m as THREE.Mesh).isMesh || !mat?.emissive) return;
+    if (amount !== null) { mat.userData.em ??= { c: mat.emissive.clone(), i: mat.emissiveIntensity }; mat.emissive.copy(glow); mat.emissiveIntensity = amount; }
+    else if (mat.userData.em) { mat.emissive.copy(mat.userData.em.c); mat.emissiveIntensity = mat.userData.em.i; }
+  });
+}
 function setHover(o: SketchObj | null, x = 0, y = 0) {
   if (o !== hovered) {
-    const paint = (obj: SketchObj, on: boolean) => obj.group.traverse((m) => {
-      const mat = (m as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-      if (!(m as THREE.Mesh).isMesh || !mat?.emissive) return;
-      if (on) { mat.userData.em ??= { c: mat.emissive.clone(), i: mat.emissiveIntensity }; mat.emissive.copy(glow); mat.emissiveIntensity = 0.12; }
-      else if (mat.userData.em) { mat.emissive.copy(mat.userData.em.c); mat.emissiveIntensity = mat.userData.em.i; }
-    });
-    if (hovered) paint(hovered, false);
-    if (o) paint(o, true);
+    if (hovered) glowObj(hovered, null);
+    if (o) glowObj(o, 0.14);
     hovered = o;
     document.body.classList.toggle('hovering', !!o);
   }
   ui.showHover(o ? (o.id === 'well' ? 'Brunnen · So funktioniert’s' : `${o.label} · Werkstatt`) : null, x, y);
 }
+// Hinweis über dem Brunnen nach der Landung, bis man ihn einmal geöffnet hat
+let wellSeen = false;
+const hint = document.createElement('div');
+hint.className = 'vhint';
+// Steht vor dem Brunnen auf dem Platz, Pfeil zeigt nach oben auf den Brunnen
+hint.innerHTML = `<div class="vhint-in"><svg viewBox="0 0 46 54" aria-hidden="true"><path d="M23 51 C 28 40, 18 30, 24 18 M24 17 C 25 13, 25 9, 23 4 M23 4 L 15 12 M23 4 L 31 11"/></svg>
+  <span>Klick auf den Brunnen!</span></div>`;
+document.body.appendChild(hint);
+const hintPos = V3(0, 0, 0);
+function updateHint(t: number) {
+  const active = free && !wellSeen && dash.t < 0 && !ui.isOpen();
+  let show = false;
+  if (active) {
+    hintPos.set(0, 0.05, 1.35).project(camera);
+    const dist = camera.position.distanceTo(well.center);
+    show = hintPos.z < 1 && Math.abs(hintPos.x) < 0.9 && hintPos.y < 0.85 && hintPos.y > -0.82 && dist < 26;
+    if (show) hint.style.transform = `translate(${((hintPos.x + 1) / 2) * innerWidth}px, ${((1 - hintPos.y) / 2) * innerHeight}px)`;
+    // Brunnen atmet sanft, solange er nicht unter der Maus ist
+    if (hovered !== well) glowObj(well, 0.06 + 0.2 * (0.5 + 0.5 * Math.sin(t * 3.2)) ** 2);
+  } else if (!active && hovered !== well && wellSeen && well.group.userData.pulsed !== false) {
+    glowObj(well, null); well.group.userData.pulsed = false;
+  }
+  hint.classList.toggle('on', show);
+}
+
 let hoverQueued = false;
 canvas.addEventListener('pointermove', (e) => {
   if (e.pointerType === 'touch' || dragging || !free || dash.t >= 0 || ui.isOpen() || hoverQueued) return;

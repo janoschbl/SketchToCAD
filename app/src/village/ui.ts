@@ -29,7 +29,9 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, html?: 
   return e;
 };
 
-/** Handschrift unperfekt machen: jeder Buchstabe leicht gedreht, versetzt, unterschiedlich kräftig. */
+/** Handschrift unperfekt machen: Die Schrift (SketchHand) wechselt selbst die Buchstabenformen.
+ *  Hier kommt nur noch Wort-für-Wort Variation dazu: Grundlinie, Neigung, Druck (Stärke), Tintenmenge.
+ *  Buchstaben bleiben zusammen in einem Textknoten, damit die Kontext-Alternativen der Schrift greifen. */
 function scribble(root: HTMLElement) {
   root.querySelectorAll<HTMLElement>('.hw').forEach((node) => {
     const walk = (n: Node) => {
@@ -40,29 +42,41 @@ function scribble(root: HTMLElement) {
           if (/^\s+$/.test(word)) { frag.appendChild(document.createTextNode(word)); continue; }
           const w = document.createElement('span');
           w.className = 'hw-w';
-          w.style.transform = `translateY(${(Math.random() - 0.5) * 2.2}px) rotate(${(Math.random() - 0.5) * 1.6}deg)`;
-          for (const ch of word) {
-            const c = document.createElement('span');
-            c.className = 'hw-c';
-            c.textContent = ch;
-            c.style.transform = `translateY(${(Math.random() - 0.5) * 1.6}px) rotate(${(Math.random() - 0.5) * 5}deg) scale(${0.95 + Math.random() * 0.1})`;
-            c.style.opacity = String(0.82 + Math.random() * 0.18);
-            if (Math.random() < 0.25) c.style.fontWeight = '700';
-            w.appendChild(c);
-          }
+          w.textContent = word;
+          w.style.transform = `translateY(${((Math.random() - 0.5) * 2.4).toFixed(2)}px) rotate(${((Math.random() - 0.5) * 2.2).toFixed(2)}deg)`;
+          w.style.letterSpacing = `${((Math.random() - 0.5) * 0.03).toFixed(3)}em`;
+          w.style.opacity = (0.84 + Math.random() * 0.16).toFixed(2);
+          if (Math.random() < 0.18) w.style.fontWeight = '600';
           frag.appendChild(w);
         }
         n.parentNode!.replaceChild(frag, n);
-      } else if (n.nodeType === 1 && !(n as HTMLElement).classList.contains('hw-c')) [...n.childNodes].forEach(walk);
+      } else if (n.nodeType === 1 && !(n as HTMLElement).classList.contains('hw-w')) [...n.childNodes].forEach(walk);
     };
     [...node.childNodes].forEach(walk);
   });
 }
 
+/** Spiralbindung als SVG: Lochung im Papier + Metallschlaufe mit Glanz */
+function spiral(width: number) {
+  const n = Math.max(8, Math.floor((width - 40) / 21));
+  const gap = (width - 40) / n;
+  let rings = '';
+  for (let i = 0; i < n; i++) {
+    const x = 20 + gap * (i + 0.5);
+    rings += `<ellipse cx="${x}" cy="31" rx="3.6" ry="3" fill="#1b1612"/>
+      <path d="M${x - 2.4} 31 C ${x - 3.5} 14, ${x + 4} 3, ${x + 6} 9 S ${x + 3} 26, ${x + 1.5} 30" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="3.4" transform="translate(1.6 2.2)" filter="url(#ringShadow)"/>
+      <path d="M${x - 2.4} 31 C ${x - 3.5} 14, ${x + 4} 3, ${x + 6} 9 S ${x + 3} 26, ${x + 1.5} 30" fill="none" stroke="url(#wire)" stroke-width="2.8" stroke-linecap="round"/>`;
+  }
+  return `<svg class="pad-spiral" viewBox="0 0 ${width} 40" width="${width}" height="40" aria-hidden="true">
+    <defs><linearGradient id="wire" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d6d6f"/><stop offset=".35" stop-color="#f4f4f2"/><stop offset=".55" stop-color="#a9a9a8"/><stop offset="1" stop-color="#4c4c4e"/></linearGradient>
+    <filter id="ringShadow"><feGaussianBlur stdDeviation="1.1"/></filter></defs>${rings}</svg>`;
+}
+
 /** Handgezeichnete Unterstreichung als SVG (wird beim Einblenden „gezogen“) */
 const SWOOSH = `<svg class="swoosh" viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 15 C 60 6, 120 20, 180 11 S 270 8, 296 13" pathLength="1"/></svg>`;
 
-export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onOpenChange?: (open: boolean) => void; claim?: ClaimVariant }): VillageUI {
+export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onWell?: () => void; onOpenChange?: (open: boolean) => void; claim?: ClaimVariant }): VillageUI {
   const variant: ClaimVariant = opts.claim ?? 'titel';
 
   // ---------- Claim im Intro (Titelkarte)
@@ -114,6 +128,18 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   const tip = el('div', 'vtip');
   document.body.appendChild(tip);
 
+  // ---------- SVG-Filter: Kugelschreiber (raue Kanten, ungleichmäßiger Farbauftrag)
+  const defs = document.createElement('div');
+  defs.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  defs.innerHTML = `<svg width="0" height="0"><filter id="ink" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4" result="grain"/>
+      <feDisplacementMap in="SourceGraphic" in2="grain" scale="2" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.035 0.25" numOctaves="2" seed="9" result="flow"/>
+      <feColorMatrix in="flow" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.1 1.45" result="mask"/>
+      <feComposite in="rough" in2="mask" operator="in"/>
+    </filter></svg>`;
+  document.body.appendChild(defs);
+
   // ---------- Pop-up (Skizzen-Zettel)
   const veil = el('div', 'vveil');
   const card = el('div', 'vcard');
@@ -139,9 +165,18 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   function showCard(html: string, pad = false) {
     card.classList.toggle('pad', pad);
     card.innerHTML = pad
-      ? `<div class="pad-rings" aria-hidden="true"></div><div class="pad-paper"><button class="vcard-x hw-x" data-act="close" aria-label="Schließen">×</button>${html}</div><span class="ear ear-tr" aria-hidden="true"></span><span class="ear ear-bl" aria-hidden="true"></span>`
+      ? `<div class="pad-board" aria-hidden="true"></div><div class="pad-sheet s2" aria-hidden="true"></div><div class="pad-sheet s1" aria-hidden="true"></div>
+         <div class="pad-paper"><div class="pad-ink">${html}</div><div class="pad-light" aria-hidden="true"></div></div>
+         <span class="ear ear-tr" aria-hidden="true"></span><span class="ear ear-bl" aria-hidden="true"></span>
+         ${spiral(560)}<button class="vcard-x hw-x" data-act="close" aria-label="Schließen">×</button>`
       : `<button class="vcard-x" data-act="close" aria-label="Schließen">×</button>${html}`;
-    if (pad) scribble(card);
+    if (pad) {
+      scribble(card);
+      // Buttons gehören nicht aufs Papier: unter den Block setzen
+      const act = card.querySelector('.pad-actions'), small = card.querySelector('.pad-small');
+      if (act) card.appendChild(act);
+      if (small) card.appendChild(small);
+    }
     veil.classList.add('on');
     setOpen('card');
     card.tabIndex = -1;
@@ -215,7 +250,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     if (!t) { if (e.target === veil) closeAll(); return; }
     const act = t.dataset.act;
     if (act === 'close') closeAll();
-    else if (act === 'well') showCard(WELL, true);
+    else if (act === 'well') { opts.onWell?.(); showCard(WELL, true); }
     else if (act === 'hero-close') { heroShownAt = 0; collapseHero(); }
     else if (act === 'project') showCard(PROJECT);
     else if (act === 'imprint') showCard(IMPRINT);
@@ -240,6 +275,8 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     openWell: () => showCard(WELL, true),
     introClaim(on) { title.classList.toggle('on', on); },
     showHero() {
+      bar.classList.add('with-cta');
+      return;
       if (hero.dataset.shown) return;
       hero.dataset.shown = '1';
       heroShownAt = performance.now();
