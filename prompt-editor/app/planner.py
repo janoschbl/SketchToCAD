@@ -5,7 +5,8 @@ Anbieter per Umgebungsvariable:
   LLM_MODE=mock     einfache Regeln, zum Testen ohne Schlüssel
   OPENAI_MODEL      Planer-Modell: gpt-6.2-sol (Standard), gpt-6.1-sol, gpt-6.2-astra (stärkstes) oder gpt-6.1-terra (günstigstes)
   OPENAI_CAD_MODEL  optional eigenes Modell nur für den CAD-Code neuer Teile (z. B. gpt-6.2-astra)
-  OPENAI_EFFORT     Denkaufwand: low (Standard), medium, high
+  OPENAI_EFFORT     Denkaufwand beim Ändern: low (Standard), medium, high
+  OPENAI_VIEW_DETAIL  Bilddetail der Modellansichten: low (Standard) oder high
   OPENAI_BASE_URL   optional, für OpenAI-kompatible Anbieter
 """
 from __future__ import annotations
@@ -38,19 +39,69 @@ def cad_model_name() -> str:
     return os.environ.get("OPENAI_CAD_MODEL") or model_name()
 
 
-def build_request(parts, prompt, selected=None, image_data_url=None, model=None):
-    """Baut die Anfrage für die Responses API (separat, damit sie ohne Netz testbar ist)."""
+def _m(v: float) -> str:
+    """Meter lesbar: 0.1 → '0,1 m' bleibt kurz, aber exakt genug."""
+    return f"{v:.4g} m"
+
+
+def context_text(kontext: dict | None) -> str:
+    """Zusatzkontext aus der Hauptapp: Maße, andere Modelle, Pins, bisherige Klärung."""
+    k = kontext or {}
+    lines = []
+    if k.get("masse"):
+        d = k["masse"]
+        lines.append(f"Modellmaße: Länge {_m(d['laenge'])}, Breite {_m(d['breite'])}, Höhe {_m(d['hoehe'])}")
+    andere = [m for m in k.get("modelle") or [] if not m.get("selbst")]
+    if andere:
+        lines.append("Andere Modelle auf dem Canvas (Name: Länge × Breite × Höhe):")
+        lines += [f'"{m["name"]}": {_m(m["laenge"])} × {_m(m["breite"])} × {_m(m["hoehe"])}' for m in andere]
+    for pin in k.get("pins") or []:
+        ort = [f"Teil {pin['teil']}"] if pin.get("teil") else []
+        if pin.get("bild") is not None:
+            ort.append("Bildposition %.3f/%.3f" % tuple(pin["bild"]))
+        if pin.get("farbe"):
+            ort.append("Texturfarbe dort " + bytes(pin["farbe"]).hex())
+        if pin.get("umgebung"):
+            ort.append("im Umkreis " + ", ".join(f"{bytes(c).hex()} {round(f * 100)}%" for c, f in pin["umgebung"]))
+        lines.append(f"Pin {pin.get('n', '?')} ({', '.join(ort) or 'ohne Teil'}): {pin.get('text', '')}")
+    verlauf = k.get("verlauf") or []
+    if verlauf:
+        lines.append("Bisherige Klärung:")
+        for e in verlauf:
+            wer = "Agent" if e.get("rolle") == "agent" else "Nutzer"
+            extra = f" (Teile: {e['teile']})" if e.get("teile") else ""
+            lines.append(f"{wer}: {e.get('text', '')}{extra}")
+    return "\n".join(lines)
+
+
+def parts_table(parts, marken=None) -> str:
+    marken = marken or {}
     rows = []
-    for p in sorted(parts, key=lambda part: part["name"]):
+    for p in sorted(parts, key=lambda part: (marken.get(part["name"], 10**6), part["name"])):
         nums = (*p.get("mitte", ()), *p.get("groesse", ()))
         bounds = " ".join(f"{n:g}" for n in nums)
         color = bytes(p["farbe_rgb"]).hex() if p.get("farbe_rgb") else "-"
-        rows.append(f'{p["name"]} {bounds} {color}')
-    text = "\n".join(rows)
+        row = f'{marken.get(p["name"], "-")} {p["name"]} {bounds} {color}'
+        if p.get("textur"):
+            row += " Textur: " + ", ".join(f"{bytes(c).hex()} {round(a * 100)}%" for c, a in p["textur"])
+        rows.append(row)
+    return "\n".join(rows)
+
+
+def build_request(parts, prompt, selected=None, image_data_url=None, model=None, kontext=None):
+    """Baut die Anfrage für die Responses API (separat, damit sie ohne Netz testbar ist)."""
+    k = kontext or {}
+    text = parts_table(parts, k.get("marken"))
+    extra = context_text(k)
+    if extra:
+        text += "\n" + extra
     if selected:
-        text += f"\nAuswahl: {selected}"
+        text += f"\nAuswahl (vom Nutzer im Modell angeklickt, Teilmuster, mehrere kommagetrennt): {selected}"
     text += f"\nAuftrag: {prompt}"
     content = [{"type": "input_text", "text": text}]
+    view_detail = os.environ.get("OPENAI_VIEW_DETAIL", "low")
+    for url in k.get("ansichten") or []:
+        content.append({"type": "input_image", "image_url": url, "detail": view_detail})
     if image_data_url:
         content.append({"type": "input_image", "image_url": image_data_url,
                         "detail": os.environ.get("OPENAI_IMAGE_DETAIL", "low")})
@@ -73,15 +124,21 @@ def _responses():
     return _client(os.environ.get("OPENAI_BASE_URL"), os.environ.get("OPENAI_API_KEY")).responses
 
 
-def plan(parts, prompt, selected=None, image_data_url=None, model=None) -> dict:
+def plan(parts, prompt, selected=None, image_data_url=None, model=None, kontext=None) -> dict:
     """Gibt {'calls': [...], 'text': str, 'usage': {...}} zurück."""
-    fast = simple_color_call(parts, prompt, selected) if not image_data_url else None
+    k = kontext or {}
+    simple = not image_data_url and not k.get("verlauf") and not k.get("pins")
+    fast = simple_color_call(parts, prompt, selected) if simple else None
     if fast is not None:
         return {"calls": [fast], "text": "", "usage": {
             "modus": "lokal", "input_tokens": 0, "output_tokens": 0, "api_aufrufe": 0}}
     if mode() == "mock":
-        return {"calls": mock_plan(parts, prompt, selected), "text": "", "usage": {"modus": "mock"}}
-    resp = _responses().create(**build_request(parts, prompt, selected, image_data_url, model))
+        return {"calls": mock_plan(parts, prompt, selected, k), "text": "", "usage": {"modus": "mock"}}
+    resp = _responses().create(**build_request(parts, prompt, selected, image_data_url, model, k))
+    return _result(resp)
+
+
+def _result(resp) -> dict:
     calls = [{"name": it.name, "arguments": json.loads(it.arguments)} for it in resp.output if it.type == "function_call"]
     return {"calls": calls, "text": getattr(resp, "output_text", "") or "", "usage": response_usage(resp)}
 
@@ -130,7 +187,7 @@ def simple_color_call(parts, prompt, selected):
     target, color = hit.groups()
     names = {p["name"].lower(): p["name"] for p in parts}
     if selected and target in ("das", "es", "teil"):
-        teil = names.get(selected.lower())
+        teil = names.get(selected.lower()) or (selected if "," in selected else None)
     else:
         teil = names.get(target)
         if teil is None:
@@ -140,37 +197,99 @@ def simple_color_call(parts, prompt, selected):
     if teil is None:
         return None
     rgb = list(bytes.fromhex(color[1:])) if color.startswith("#") else FARBEN[color]
-    return {"name": "faerbe", "arguments": {"teil": teil, "rgb": rgb}}
+    return {"name": "faerbe", "arguments": {"teil": teil, "rgb": rgb, "modus": "auto", "logos_entfernen": False}}
 
 
 # ---------------------------------------------------------------- Mock (ohne Schlüssel)
 TEILWOERTER = {"felge": "felge_*", "reifen": "reifen_*", "rad": "reifen_*", "räder": "reifen_*", "licht": "scheinwerfer_*",
                "lichter": "scheinwerfer_*", "scheinwerfer": "scheinwerfer_*", "spoiler": "spoiler", "dach": "kabine",
                "kabine": "kabine", "karosserie": "karosserie", "auto": "karosserie", "horn": "horn*"}
+ALLES = re.compile(r"\b(alles|ganze[sn]?|komplett|whole|everything|all)\b")
 
 
-def mock_plan(parts, prompt, selected=None):
+def frage(text, typ="auswahl", optionen=(), standard=None, einheit=None, mehrfach=False):
+    return {"name": "frage_nach", "arguments": {
+        "frage": text, "typ": typ, "standard": standard, "einheit": einheit, "mehrfach": mehrfach,
+        "optionen": [{"id": o[0], "label": o[1], "beschreibung": None, "teile": o[2] if len(o) > 2 else None}
+                     for o in optionen]}}
+
+
+def _mock_size(p):
+    """„10 cm lang“, „2 m hoch“ → setze_groesse; „angleichen/match“ → gleiche_an."""
+    hit = re.search(r"(\d+(?:[.,]\d+)?)\s*(mm|cm|m|zentimeter|centimeters?|millimeters?|meters?|meter)\b", p)
+    if not hit:
+        return None
+    wert = float(hit.group(1).replace(",", "."))
+    unit = hit.group(2)
+    einheit = "mm" if unit == "mm" or unit.startswith("milli") else \
+        "cm" if unit == "cm" or unit.startswith(("zenti", "centi")) else "m"
+    achse = "hoehe" if re.search(r"hoch|high|tall|höhe", p) else "breite" if re.search(r"breit|wide", p) else \
+        "laenge" if re.search(r"lang|long|länge|length", p) else "alle"
+    return {"name": "setze_groesse", "arguments": {"teil": "*", "achse": achse, "wert": wert, "einheit": einheit,
+                                                     "proportional": True, "anker": "boden"}}
+
+
+def mock_plan(parts, prompt, selected=None, kontext=None):
+    k = kontext or {}
     p = prompt.lower()
-    if re.fullmatch(r"(?:füge einen (?:heckflügel|spoiler) hinzu|setz einen (?:heckflügel|spoiler) drauf)[.!]?", p.strip()):
+    antworten = [e for e in k.get("verlauf") or [] if e.get("rolle") != "agent"]
+    antwort = antworten[-1] if antworten else None
+    if antwort:
+        p += " " + str(antwort.get("text", "")).lower()
+    if re.fullmatch(r"(?:füge einen (?:heckflügel|spoiler) hinzu|setz einen (?:heckflügel|spoiler) drauf)[.!]?", prompt.lower().strip()):
         return [{"name": "baue", "arguments": {"bezug": None, "teile": [
-            {"name": "heckfluegel", "form": "keil", "quelle": None,
+            {"name": "heckfluegel", "form": "keil", "quelle": None, "profil": None,
              "positionen": [[-0.43, 0.38, 0]], "groesse": [0.16, 0.07, 0.8],
              "drehung": [0, 0, 0], "rgb": [30, 30, 30]}
         ]}}]
-    teil = selected
-    for wort, muster in TEILWOERTER.items():
-        if wort in p:
-            teil = muster
-            break
+    logo = re.search(r"(?:vom|von|das|den|dem|ein(?:en)?|the|an?)\s+([\w\s.-]+?)[\s-]*(?:logo|sticker|aufkleber)",
+                     " ".join(str(x.get("text", "")).lower() for x in k.get("pins") or []))
+    if logo:
+        pin = k["pins"][-1]
+        return [{"name": "klebe_logo", "arguments": {
+            "teil": pin.get("teil") or selected or "*", "quelle": "web", "marke": re.split(r"\b(?:sticker|vom|von|das|den|dem|einen?|the|an?)\s+", logo.group(1))[-1].strip(), "domain": None,
+            "text": None, "rgb": None, "pin": pin.get("n"), "bild_position": None, "seite": None if pin.get("bild") else "links",
+            "position": None, "breite_m": 0.5, "drehung": 0, "nur_symbol": bool(re.search(r"nur .*(logo|symbol|zeichen)|ohne (text|schrift)|only .*logo|without text", " ".join(str(x.get("text", "")).lower() for x in k.get("pins") or [])))}}]
+    if re.search(r"oldtimer|daraus ein|turn (it )?into|make (it|this) (a|an) ", p) and not antwort:
+        return [frage("Das geht nur als Änderung am vorhandenen Modell. Was soll sich konkret ändern?",
+                      optionen=[("farbe", "Farbe ändern"), ("groesse", "Größe ändern"), ("nichts", "Abbrechen")])]
+    calls = []
+    size = _mock_size(p)
+    if size:
+        calls.append(size)
+        if re.search(r"gleich|angleich|match|other sizes|andere", p):
+            andere = [m for m in k.get("modelle") or [] if not m.get("selbst")]
+            ref = antwort.get("modell") if antwort and antwort.get("modell") else None
+            if ref is None and len(andere) == 1:
+                ref = andere[0]["name"]
+            if ref is None and len(andere) > 1:
+                return [frage("An welches Modell soll ich die Größe angleichen?", typ="modell")]
+            if ref is not None:
+                calls = [{"name": "gleiche_an", "arguments": {"teil": "*", "referenz": ref, "achse": "alle",
+                                                               "proportional": True, "anker": "boden"}}] + calls
+        return calls
+    teil = antwort.get("teile") if antwort and antwort.get("teile") else selected
+    if not (antwort and antwort.get("teile")):
+        for wort, muster in TEILWOERTER.items():
+            if wort in p:
+                teil = muster
+                break
     if ("vorne" in p or "vorder" in p) and teil and teil.endswith("_*"):
         teil = teil[:-1] + "v*"
     if ("hinten" in p or "hinter" in p) and teil and teil.endswith("_*"):
         teil = teil[:-1] + "h*"
+    farbe = next((rgb for wort, rgb in FARBEN.items() if wort in p), None)
+    if farbe and ALLES.search(prompt.lower()) and not antwort and len(parts) > 1:
+        return [frage("Auch Räder und Scheiben?", optionen=[
+            ("alles", "Alles", "*"), ("karosserie", "Nur Karosserie", "karosserie*"),
+            ("ohne", "Ohne Räder und Glas", "karosserie*")], standard="ohne")]
+    if not teil and farbe and ALLES.search(p):
+        teil = "*"
     if not teil:
-        return [{"name": "frage_nach", "arguments": {"frage": "Welches Teil meinst du? Klicke es im Viewer an."}}]
-    for wort, rgb in FARBEN.items():
-        if wort in p:
-            return [{"name": "faerbe", "arguments": {"teil": teil, "rgb": rgb}}]
+        return [frage("Welches Teil meinst du? Klick es im Modell an.", typ="teil", mehrfach=True)]
+    if farbe:
+        return [{"name": "faerbe", "arguments": {"teil": teil, "rgb": farbe, "modus": "auto",
+                                                   "logos_entfernen": bool(re.search(r"logo|aufdruck|einfarbig", p))}}]
     if "weg" in p or "lösch" in p or "ohne" in p:
         return [{"name": "loesche", "arguments": {"teil": teil}}]
     if "größer" in p or "groesser" in p:
@@ -181,7 +300,8 @@ def mock_plan(parts, prompt, selected=None):
         return [{"name": "verschiebe", "arguments": {"teil": teil, "x": 0, "y": 0.2, "z": 0}}]
     if "stern" in p or "andere form" in p or "neue" in p:
         return [{"name": "ersetze", "arguments": {"teil": teil, "beschreibung": prompt, "art": "technisch"}}]
-    return [{"name": "frage_nach", "arguments": {"frage": "Was genau soll sich ändern: Farbe, Größe, Position oder Form?"}}]
+    return [frage("Was soll sich ändern?", optionen=[
+        ("farbe", "Farbe"), ("groesse", "Größe"), ("position", "Position"), ("form", "Form")])]
 
 
 MOCK_CAD = """import cadquery as cq

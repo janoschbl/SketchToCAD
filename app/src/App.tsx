@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { IconMaximize, IconSparkles, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
-import { Engine, COLORS, BG_COLORS, type Tool, type CommentAnchor, type TextRequest } from './engine';
+import { Engine, COLORS, BG_COLORS, type Tool, type CommentAnchor, type TextRequest, type PartRef } from './engine';
 import { Label } from '@/components/ui/label';
 import type React from 'react';
 import { Slider } from '@/components/ui/slider';
@@ -8,8 +8,12 @@ import WarmTooltip from '@/components/WarmTooltip';
 import Toolbar from '@/components/Toolbar';
 import ElementBar from '@/components/ElementBar';
 import CommentPin, { type Comment } from '@/components/CommentPin';
-import PromptBar, { MODELS, type ContextItem } from '@/components/bui/PromptBar';
-import { sendPrompt, type PromptPayload } from '@/lib/prompt';
+import PromptBar, { type ContextItem } from '@/components/bui/PromptBar';
+import AgentChat, { type ChatItem, type PickState } from '@/components/bui/AgentChat';
+import {
+  continueEdit, convertModel, editModel, fetchConfig, FALLBACK_CONFIG, PromptError,
+  type EditArgs, type Frage, type Pin, type PromptResult, type VerlaufEintrag,
+} from '@/lib/prompt';
 import { CanvasSync, type SyncStatus } from '@/sync/CanvasSync';
 import Presence from '@/components/Presence';
 import { generateMesh } from '@/lib/magic';
@@ -45,7 +49,18 @@ function IconChoice({ on, onClick, label, children }: { on: boolean; onClick: ()
   );
 }
 
-type Toast = { id: number; title: string; body: string };
+type Toast = { id: number; title: string; body: string; ms?: number };
+
+/** Offene Rückfrage: alles, was zum Fortsetzen des ursprünglichen Auftrags nötig ist. */
+type Pending = {
+  auftrag: string; verlauf: VerlaufEintrag[]; session: string | null; frage: Frage;
+  modelKey: string; part: string | null; image: string | null; pins: Pin[]; commentIds: string[];
+};
+/** Chat-Verlauf pro Modell (Rückfragen und Antworten über der Prompt-Leiste). */
+type Chat = { modelId: number; items: ChatItem[]; pending: Pending | null };
+type RunArgs = Omit<Pending, 'frage'>;
+
+const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 function isTyping(t: EventTarget | null) {
   return !!(t as HTMLElement | null)?.closest?.('input, textarea, [contenteditable="true"]');
@@ -92,6 +107,7 @@ function TextEditor({ engine, req, color, onDone }: { engine: Engine; req: TextR
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const modelFileRef = useRef<HTMLInputElement>(null);
   const [engine, setEngine] = useState<Engine>();
   const [tool, setTool] = useState<Tool>('select');
   const [lock, setLock] = useState(false);
@@ -129,6 +145,21 @@ export default function App() {
   const [magicN, setMagicN] = useState(0);
   const [magicBusy, setMagicBusy] = useState<number | null>(null);
   const [magicErr, setMagicErr] = useState<string | null>(null);
+  // Prompt: geklicktes Teil, Konfiguration des Prompt-Editor-Backends, laufende Anfrage, Rückfrage-Chat
+  const [part, setPart] = useState<PartRef | null>(null);
+  const [multiPart, setMultiPart] = useState(false);
+  const [promptCfg, setPromptCfg] = useState(FALLBACK_CONFIG);
+  const [busyId, setBusyId] = useState<number | null>(null); // Modell-ID, an dem die KI gerade arbeitet
+  const promptBusy = useRef(false);
+  const [chat, setChat] = useState<Chat | null>(null);
+  const [pick, setPick] = useState<PickState | null>(null);
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
+  const pickRef = useRef(pick);
+  pickRef.current = pick;
+  const selIdsRef = useRef<number[]>([]);
+  /** Rückfragen vom Typ „teil“/„modell“: Klicks im Canvas abfangen (aktuelle Handler, aus dem Engine-Callback gerufen). */
+  const pickHandlers = useRef<{ sel: (ids: number[]) => boolean; part: (p: PartRef | null) => void }>({ sel: () => false, part: () => {} });
   const lockRef = useRef(lock);
   lockRef.current = lock;
 
@@ -165,18 +196,26 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [tool, magicN, runMagic]);
 
-  const toast = useCallback((title: string, body: string) => {
+  const toast = useCallback((title: string, body: string, ms = 4500) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, title, body }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4500);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), ms);
   }, []);
 
   useEffect(() => {
     const e = new Engine(canvasRef.current!);
     e.onTool = setTool;
     e.onObj = setObj3d;
-    e.onSel = setSelIds;
+    e.onSel = (ids) => { if (pickHandlers.current.sel(ids)) return; selIdsRef.current = ids; setSelIds(ids); };
+    e.convertModel = convertModel;
+    e.onError = (title, body) => toast(title, body, 9000);
     e.onMagic = setMagicN;
+    e.onMulti = setMultiPart;
+    e.onPart = (p) => {
+      pickHandlers.current.part(p);
+      setPart(p);
+      setExcluded((x) => (x.has('part') ? new Set([...x].filter((k) => k !== 'part')) : x));
+    };
     e.onChange = bumpChange;
     e.onImagePick = () => fileRef.current?.click();
     e.onTextRequest = (r) => setTextReq(r);
@@ -211,7 +250,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => setExcluded(new Set()), [selIds]);
+  useEffect(() => { setExcluded(new Set()); }, [selIds]);
 
   // ---------- Prompt-Kontext ----------
   const selInfos = useMemo(() => (engine ? selIds.map((id) => engine.info(id)).filter((x): x is NonNullable<typeof x> => !!x) : []), [engine, selIds, changeTick]);
@@ -221,39 +260,183 @@ export default function App() {
     return m;
   }, [engine, selInfos, changeTick]);
   const ctxComments = comments.filter((c) => c.status === 'open' && c.text && (selIds.length ? c.anchor.elId !== null && selIds.includes(c.anchor.elId) : true));
+  const activeInfos = selInfos.filter((i) => !excluded.has(`el-${i.id}`));
+  const modelInfos = activeInfos.filter((i) => i.type === 'model');
+  const refIds = activeInfos.filter((i) => i.type !== 'model').map((i) => i.id); // Skizzen/Bilder = Vorlage
+  const partCtx = part && modelInfos.some((i) => i.id === part.modelId) && !excluded.has('part') ? part : null;
   const context: ContextItem[] = [
     ...selInfos.map((i) => ({ key: `el-${i.id}`, kind: 'element' as const, label: i.label, elType: i.type, thumb: thumbs.get(i.id) })),
+    ...(part && selIds.includes(part.modelId) ? [{ key: 'part', kind: 'part' as const, label: part.names.length === 1 ? `Teil: ${part.names[0]}` : `${part.names.length} Teile: ${part.names.join(', ')}` }] : []),
     ...ctxComments.map((c) => ({ key: `c-${c.id}`, kind: 'comment' as const, label: c.text, n: c.n })),
   ].filter((c) => !excluded.has(c.key));
-  const showPrompt = selIds.length > 0 || ctxComments.length > 0;
+  // Die Leiste gibt es nur zum Ändern eines ausgewählten 3D-Modells.
+  const showPrompt = selInfos.some((i) => i.type === 'model');
+  const chatVisible = !!chat && chat.items.length > 0 && selIds.includes(chat.modelId);
   const mentionables = engine ? engine.els.filter((e) => e.type === 'image' || e.type === 'model').map((e) => ({ id: e.id, label: engine.info(e.id)!.label, elType: e.type })) : [];
 
-  const buildPayload = (prompt: string, model: string, elIds: number[], cs: Comment[]): PromptPayload => ({
-    prompt,
-    model,
-    elements: elIds.map((id) => engine!.info(id)).filter((x): x is NonNullable<typeof x> => !!x).map((i) => ({ ...i, image: engine!.snapshot(i.id, 1024) })),
-    comments: cs.map((c) => ({ n: c.n, text: c.text, elementId: c.anchor.elId, u: +c.anchor.u.toFixed(4), v: +c.anchor.v.toFixed(4), x: Math.round(c.anchor.wx), y: Math.round(c.anchor.wy) })),
-    createdAt: new Date().toISOString(),
-  });
+  useEffect(() => {
+    if (showPrompt && promptCfg.mode === 'unknown') fetchConfig().then(setPromptCfg).catch(() => {});
+  }, [showPrompt, promptCfg.mode]);
 
   const markSent = (ids: string[]) => setComments((cs) => cs.map((c) => (ids.includes(c.id) ? { ...c, status: 'sent' } : c)));
 
-  const sendFromBar = async (text: string, model: string) => {
-    const elIds = selInfos.filter((i) => !excluded.has(`el-${i.id}`)).map((i) => i.id);
-    const cs = ctxComments.filter((c) => !excluded.has(`c-${c.id}`));
-    await sendPrompt(buildPayload(text, model, elIds, cs));
-    markSent(cs.map((c) => c.id));
-    setExcluded(new Set());
-    const parts = [elIds.length && `${elIds.length} Element${elIds.length > 1 ? 'e' : ''}`, cs.length && `${cs.length} Kommentar${cs.length > 1 ? 'e' : ''}`].filter(Boolean).join(' · ');
-    toast('Prompt gesendet', `${parts || 'Nur Text'} – noch kein KI-Backend angebunden, Payload steht in der Konsole.`);
+  /** Ergebnis als kurzer Text für die Agent-Blase (und als Toast, falls der Chat nicht sichtbar ist). */
+  const summary = (res: PromptResult): string => {
+    const list = (xs: string[]) => (xs.length > 4 ? `${xs.slice(0, 4).join(', ')} +${xs.length - 4}` : xs.join(', '));
+    const stats = [res.stats, promptCfg.mode === 'mock' && 'Testmodus ohne KI'].filter(Boolean).join(' · ');
+    const errs = res.errors.length ? ` ${res.errors.length} Schritt(e) fehlgeschlagen: ${res.errors.join(' · ')}` : '';
+    if (res.glb) {
+      const n = res.changed.length;
+      const head = res.text || `Erledigt – ${n} ${n === 1 ? 'Teil' : 'Teile'} geändert: ${list(res.changed)}.`;
+      return `${head}${errs}${stats ? ` (${stats})` : ''}`;
+    }
+    return res.text || (res.errors.length ? `Das ging nicht: ${res.errors.join(' · ')}` : 'Ich habe keine passende Änderung gefunden. Beschreib bitte genauer, was sich ändern soll.');
   };
 
+  const pushChat = (modelId: number, items: ChatItem[], pending?: Pending | null) => setChat((c) => {
+    const base: Chat = c && c.modelId === modelId ? c : { modelId, items: [], pending: null };
+    return { ...base, items: [...base.items, ...items].slice(-40), pending: pending === undefined ? base.pending : pending };
+  });
+
+  const endPick = (modelId?: number) => {
+    setPick(null);
+    if (engine && modelId !== undefined) engine.highlightParts(modelId, []);
+  };
+
+  /** Pin eines Kommentars für die KI: Teil und Texturposition unter dem Pin (frisch aufgelöst). */
+  const pinOf = (c: Comment, text = c.text): Pin => {
+    const r = engine?.resolvePin(c.anchor) ?? { part: c.anchor.part, uv: c.anchor.uv };
+    return { n: c.n, text, teil: r.part ?? null, bild: r.uv ?? null };
+  };
+
+  /** Auftrag an einem Modell ausführen (neu oder als Fortsetzung nach einer Rückfrage). true = verarbeitet. */
+  const runEdit = async (targetId: number, a: RunArgs): Promise<boolean> => {
+    if (!engine || promptBusy.current) return false;
+    promptBusy.current = true;
+    setBusyId(targetId);
+    const shown = () => selIdsRef.current.includes(targetId);
+    try {
+      const info = engine.info(targetId);
+      let views: ReturnType<Engine['modelViews']> = null;
+      try { views = engine.modelViews(targetId); } catch (err) { console.warn('Ansichten fehlgeschlagen', err); }
+      const models = engine.allModelDims().map(({ id, ...m }) => ({ ...m, selbst: id === targetId }));
+      const args: EditArgs = {
+        prompt: a.auftrag, model: a.modelKey, part: a.part, image: a.image, views: views?.views, marks: views?.marken,
+        verlauf: a.verlauf, models, pins: a.pins, label: info?.label,
+      };
+      let res = a.session ? await continueEdit(a.session, args) : null;
+      if (!res) {
+        const glb = await engine.exportModel(targetId);
+        if (!glb) throw new PromptError('Das Modell ist nicht mehr auf dem Canvas.');
+        res = await editModel({ ...args, glb });
+      }
+      if (res.glb && (await engine.replaceModel(targetId, res.glb)) === null) {
+        toast('Modell nicht mehr vorhanden', 'Es wurde gelöscht, während die KI daran gearbeitet hat.');
+        return false;
+      }
+      if (res.question) {
+        pushChat(targetId, [{ id: uid(), role: 'agent', text: res.question.frage }], { ...a, session: res.session, frage: res.question });
+        if (!shown()) toast('Rückfrage', `${info?.label ?? 'Modell'}: ${res.question.frage}`, 9000);
+      } else {
+        const text = summary(res);
+        pushChat(targetId, [{ id: uid(), role: 'agent', text, tone: res.glb ? 'ok' : res.errors.length ? 'error' : 'info' }], null);
+        endPick(targetId);
+        if (!shown()) toast(res.glb ? 'Modell geändert' : 'Nichts geändert', text, 9000);
+      }
+      if (res.glb) markSent(a.commentIds);
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      pushChat(targetId, [{ id: uid(), role: 'agent', text: msg, tone: 'error' }]);
+      if (!shown()) toast('Prompt fehlgeschlagen', msg, 9000);
+      return false;
+    } finally {
+      promptBusy.current = false;
+      setBusyId(null);
+    }
+  };
+
+  /** Antwort auf die offene Rückfrage: erscheint als Blase links, danach läuft der ursprüngliche Auftrag weiter. */
+  const answer = (entry: VerlaufEintrag) => {
+    const c = chatRef.current;
+    if (!c?.pending || promptBusy.current) return;
+    const { frage, ...p } = c.pending;
+    pushChat(c.modelId, [{ id: uid(), role: 'user', text: entry.text }], null);
+    endPick(c.modelId);
+    runEdit(c.modelId, { ...p, verlauf: [...p.verlauf, { rolle: 'agent', text: frage.frage }, entry] });
+  };
+
+  const cancelQuestion = () => {
+    const c = chatRef.current;
+    if (!c?.pending) return;
+    pushChat(c.modelId, [{ id: uid(), role: 'user', text: 'Abgebrochen' }], null);
+    endPick(c.modelId);
+  };
+
+  // Rückfragen „Klick das Teil an“ / „Wähle ein anderes Modell“: Canvas-Klicks als Antwort einsammeln.
+  pickHandlers.current = {
+    sel: (ids) => {
+      const c = chatRef.current, pk = pickRef.current;
+      if (!engine || !c || pk?.kind !== 'modell') return false;
+      const other = ids.find((id) => id !== c.modelId && engine.info(id)?.type === 'model');
+      if (other === undefined) return false;
+      setPick({ kind: 'modell', items: [{ key: String(other), label: engine.info(other)!.label }] });
+      engine.select([c.modelId]);
+      return true;
+    },
+    part: (p) => {
+      const c = chatRef.current, pk = pickRef.current;
+      if (!engine || !c || !p || pk?.kind !== 'teil' || p.modelId !== c.modelId) return;
+      const multi = !!c.pending?.frage.mehrfach;
+      const sel = p.patterns.map((key, i) => ({ key, label: p.names[i] }));
+      const items = multi ? sel : sel.slice(-1);
+      setPick({ kind: 'teil', items });
+      engine.highlightParts(c.modelId, items.map((x) => x.key.replace(/__\*$/, '')));
+    },
+  };
+
+  const sendFromBar = async (text: string, modelKey: string): Promise<boolean> => {
+    if (!engine) return false;
+    // Offene Rückfrage an diesem Modell: der Text ist die Antwort.
+    if (chatVisible && chat?.pending) { if (text) answer({ rolle: 'nutzer', text }); return !!text; }
+    if (modelInfos.length !== 1) {
+      toast(modelInfos.length ? 'Mehrere Modelle ausgewählt' : 'Kein Modell ausgewählt',
+        modelInfos.length ? 'Entferne die Chips der Modelle, die nicht geändert werden sollen, oder wähle nur eins aus.' : 'Wähle ein 3D-Modell aus, das geändert werden soll.');
+      return false;
+    }
+    const targetId = modelInfos[0].id;
+    const cs = ctxComments.filter((c) => !excluded.has(`c-${c.id}`));
+    const onTarget = cs.filter((c) => c.anchor.elId === targetId);
+    const elsewhere = cs.filter((c) => c.anchor.elId !== targetId);
+    const auftrag = [text, ...elsewhere.map((c) => `Kommentar ${c.n}: ${c.text}`)].filter(Boolean).join('\n') || 'Setze die Kommentare an den Pins um.';
+    const shownText = [text, ...cs.map((c) => `Pin ${c.n}: ${c.text}`)].filter(Boolean).join('\n');
+    pushChat(targetId, [{ id: uid(), role: 'user', text: shownText }], null);
+    endPick(targetId);
+    const ok = await runEdit(targetId, {
+      auftrag, verlauf: [], session: null, modelKey, part: partCtx?.patterns.join(',') ?? null,
+      image: refIds.length ? engine.snapshotMany(refIds, 1024) : null,
+      pins: onTarget.map((c) => pinOf(c)), commentIds: cs.map((c) => c.id),
+    });
+    if (ok) setExcluded(new Set());
+    return ok;
+  };
+
+  /** Kommentar-Pin einzeln ausführen: nur an einem 3D-Modell (der Pin sagt, wo am Modell). */
   const sendComment = async (c: Comment, text: string) => {
-    const cc = { ...c, text };
-    await sendPrompt(buildPayload(text, MODELS[0].name, c.anchor.elId !== null ? [c.anchor.elId] : [], [cc]));
-    setComments((cs) => cs.map((x) => (x.id === c.id ? { ...cc, status: 'sent' } : x)));
+    if (!engine) return;
+    const targetId = c.anchor.elId;
+    if (targetId === null || engine.info(targetId)?.type !== 'model') {
+      toast('Kein 3D-Modell', 'Kommentare lassen sich nur an einem 3D-Modell ausführen. Wähle ein Modell und schick den Kommentar über die Prompt-Leiste mit.');
+      return;
+    }
+    engine.select([targetId]);
+    setComments((cs) => cs.map((x) => (x.id === c.id ? { ...x, text, status: x.status === 'draft' ? 'open' : x.status } : x)));
     setOpenComment(null);
-    toast(`Kommentar ${c.n} gesendet`, 'Einzeln als Prompt verschickt – Payload steht in der Konsole.');
+    pushChat(targetId, [{ id: uid(), role: 'user', text: `Pin ${c.n}: ${text}` }], null);
+    await runEdit(targetId, {
+      auftrag: text, verlauf: [], session: null, modelKey: promptCfg.defaultModel, part: null, image: null,
+      pins: [pinOf(c, text)], commentIds: [c.id],
+    });
   };
 
   const onFiles = async (files: FileList | null) => {
@@ -261,12 +444,20 @@ export default function App() {
     for (const f of Array.from(files)) if (f.type.startsWith('image/')) await engine.addImage(f);
   };
 
+  const onModelFiles = async (files: FileList | null) => {
+    if (!engine || !files) return;
+    for (const f of Array.from(files)) await engine.addModelFile(f);
+  };
+
   const one = selIds.length === 1 ? selInfos[0] : undefined;
+  // Echte Maße nur bei Änderungen neu messen (exakte Box über alle Vertices)
+  const oneDims = useMemo(() => (engine && one?.type === 'model' ? engine.modelDims(one.id) : null), [engine, one?.id, one?.type, changeTick]);
 
   return (
     <div className="fixed inset-0 select-none touch-none text-sm">
       <canvas ref={canvasRef} className="absolute inset-0 size-full touch-none" />
       <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }} />
+      <input ref={modelFileRef} type="file" accept=".glb,.gltf,.obj,.usd,.usda,.usdc" multiple hidden onChange={(e) => { onModelFiles(e.target.files); e.target.value = ''; }} />
 
       {engine && (
         <Overlay engine={engine}>
@@ -289,6 +480,10 @@ export default function App() {
                     />
                   );
                 })}
+                {busyId !== null && (() => {
+                  const b = engine.screenBox(busyId);
+                  return b ? <div className="pointer-events-none absolute animate-pulse rounded-[10px] bg-white/50 ring-2 ring-[#7c5cff]/50" style={{ left: b[0], top: b[1], width: b[2] - b[0], height: b[3] - b[1] }} /> : null;
+                })()}
                 {one && box && onScreen && (
                   <ElementBar
                     type={one.type} box={box} tool={tool}
@@ -298,6 +493,14 @@ export default function App() {
                     onRemoveBg={() => { if (!engine.removeBg(one.id)) toast('Kein Hintergrund gefunden', 'Am Bildrand gibt es keine einheitliche Hintergrundfarbe.'); }}
                     onResize={(f) => engine.resizeEl(one.id, f)}
                     onDelete={() => engine.deleteSelection()}
+                    parts={part && part.modelId === one.id ? { count: part.names.length, logos: part.logos } : null}
+                    multi={multiPart}
+                    onMulti={() => engine.setMultiPart(!multiPart)}
+                    onPartScale={(f) => engine.scaleSelectedParts(f)}
+                    onDeleteParts={() => engine.deleteSelectedParts()}
+                    onClearParts={() => engine.deselect3d()}
+                    dims={oneDims}
+                    onSetSize={(axis, meters) => { if (!engine.setModelSize(one.id, axis, meters)) toast('Größe nicht gesetzt', 'Das Modell hat auf dieser Achse keine Ausdehnung.'); }}
                   />
                 )}
                 {textReq && (
@@ -316,6 +519,7 @@ export default function App() {
         tool={tool} setTool={setTool} lock={lock} setLock={setLock}
         onImage={() => fileRef.current?.click()}
         onModel={() => engine?.addModel()}
+        onModelFile={() => modelFileRef.current?.click()}
         onUndo={() => engine?.undo()} onRedo={() => engine?.redo()}
       />
 
@@ -382,7 +586,28 @@ export default function App() {
         </WarmTooltip>
       </div>
 
-      {/* Prompt-Leiste */}
+      {/* Agent-Chat: kleines Fenster am Bildschirm (oben rechts, verschiebbar) */}
+      {showPrompt && engine && chatVisible && chat && (
+        <AgentChat
+          items={chat.items}
+          title={engine.info(chat.modelId)?.label ?? 'Agent'}
+          frage={chat.pending?.frage ?? null}
+          busy={busyId === chat.modelId}
+          pick={pick}
+          onAnswer={answer}
+          onStartPick={(kind) => setPick((p) => (p?.kind === kind ? p : { kind, items: [] }))}
+          onRemovePick={(key) => setPick((p) => {
+            if (!p) return p;
+            const items = p.items.filter((x) => x.key !== key);
+            if (p.kind === 'teil') engine.highlightParts(chat.modelId, items.map((x) => x.key.replace(/__\*$/, '')));
+            return { ...p, items };
+          })}
+          onCancel={cancelQuestion}
+          onClose={() => { if (busyId === chat.modelId) return; endPick(chat.modelId); setChat(null); }}
+        />
+      )}
+
+      {/* Prompt-Leiste: nur mit ausgewähltem 3D-Modell */}
       {showPrompt && engine && (
         <div className="absolute bottom-4 left-1/2 w-[min(600px,calc(100vw-32px))] -translate-x-1/2" style={{ animation: 'rise-in 260ms cubic-bezier(0.23,1,0.32,1) both' }}>
           <PromptBar
@@ -392,15 +617,20 @@ export default function App() {
             onMention={(id) => engine.select([...selIds.filter((x) => x !== id), id])}
             onAttach={() => fileRef.current?.click()}
             onSend={sendFromBar}
-            placeholder={selIds.length ? 'Was soll mit der Auswahl passieren?' : 'Prompt zu den Kommentaren…'}
+            models={promptCfg.models}
+            defaultModel={promptCfg.defaultModel}
+            answering={chatVisible && !!chat?.pending}
+            onClose={chatVisible && chat?.pending ? cancelQuestion : undefined}
+            placeholder={partCtx ? `Was soll mit ${partCtx.names.length === 1 ? `„${partCtx.names[0]}“` : `den ${partCtx.names.length} Teilen`} passieren?` : 'Was soll am Modell geändert werden? Teil anklicken zum Eingrenzen.'}
           />
         </div>
       )}
 
       {!showPrompt && (
         <div className="pointer-events-none absolute bottom-5 left-1/2 max-w-[56vw] -translate-x-1/2 text-center text-xs text-neutral-500">
-          {obj3d ? (<><b>G</b> Verschieben · <b>R</b> Drehen · <b>S</b> Skalieren · <b>Entf</b> Löschen · <b>Esc</b> abwählen</>)
-            : tool === 'select' ? 'Klicken = auswählen · Umschalt = mehrere · Rahmen ziehen = Mehrfachauswahl · Bilder einfügen per Drag & Drop oder Strg+V'
+          {obj3d ? (<><b>Umschalt</b>+Klick weitere Teile · <b>Entf</b> Löschen · <b>Esc</b> abwählen</>)
+            : tool === 'select' && selIds.length ? 'Wähle ein 3D-Modell oder zieh eine GLB-Datei in den Canvas, um es per Prompt zu ändern'
+            : tool === 'select' ? 'Klicken = auswählen · Umschalt = mehrere · Rahmen ziehen = Mehrfachauswahl · Bilder und 3D-Dateien per Drag & Drop'
             : tool === 'comment' ? 'Auf ein Bild, Modell oder eine Skizze klicken, um einen Kommentar-Pin zu setzen'
             : tool === 'imgErase' ? 'Über ein Bild malen, um Bereiche zu radieren'
             : tool === 'magic' ? 'Magic Pen: Objekt skizzieren (am besten in Schrägansicht), dann Enter oder „In 3D umwandeln“'
@@ -434,7 +664,7 @@ export default function App() {
       {sync && <Presence me={sync.me} peers={[...sync.peers.values()]} status={syncStatus} />}
 
       {/* Toasts */}
-      <div className="pointer-events-none absolute top-20 right-4 grid w-80 gap-2">
+      <div className="pointer-events-none absolute right-4 bottom-4 grid w-80 gap-2">
         {toasts.map((t) => (
           <div key={t.id} className="rounded-[12px] bg-surface px-3.5 py-2.5 shadow-raised" style={{ animation: 'pop-in 200ms cubic-bezier(0.23,1,0.32,1) both' }}>
             <div className="text-[12.5px] font-medium text-ink">{t.title}</div>

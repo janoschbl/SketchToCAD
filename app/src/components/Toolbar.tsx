@@ -1,7 +1,7 @@
 import type React from 'react';
 import {
   IconArrowBackUp, IconArrowForwardUp, IconArrowRight, IconBucketDroplet, IconCircle, IconCube, IconEraser, IconHandStop,
-  IconLock, IconLockOpen2, IconMessageCircle, IconMinus, IconNote, IconPencil, IconPhoto, IconPointer, IconSquare,
+  IconFileUpload, IconLock, IconLockOpen2, IconMessageCircle, IconMinus, IconNote, IconPencil, IconPhoto, IconPointer, IconSquare,
   IconSparkles, IconSquareRotated, IconTypography,
 } from '@tabler/icons-react';
 import type { Tool } from '@/engine';
@@ -50,9 +50,9 @@ function ToolBtn({ on, onClick, label, shortcut, children }: { on?: boolean; onC
 
 const Sep = () => <span className="mx-1 h-6 w-px bg-line-strong" />;
 
-export default function Toolbar({ tool, setTool, lock, setLock, onImage, onModel, onUndo, onRedo }: {
+export default function Toolbar({ tool, setTool, lock, setLock, onImage, onModel, onModelFile, onUndo, onRedo }: {
   tool: Tool; setTool: (t: Tool) => void; lock: boolean; setLock: (b: boolean) => void;
-  onImage: () => void; onModel: () => void; onUndo: () => void; onRedo: () => void;
+  onImage: () => void; onModel: () => void; onModelFile: () => void; onUndo: () => void; onRedo: () => void;
 }) {
   const icon = { size: 19, stroke: 1.6 };
   return (
@@ -69,7 +69,8 @@ export default function Toolbar({ tool, setTool, lock, setLock, onImage, onModel
         {EXTRA.map(({ id, label, key, Icon }) => (
           <ToolBtn key={id} on={tool === id} onClick={() => setTool(id)} label={label} shortcut={key}><Icon {...icon} /></ToolBtn>
         ))}
-        <ToolBtn onClick={onModel} label="3D-Modell hinzufügen"><IconCube {...icon} /></ToolBtn>
+        <ToolBtn onClick={onModelFile} label="3D-Datei hochladen (GLB, glTF, OBJ, USD)"><IconFileUpload {...icon} /></ToolBtn>
+        <ToolBtn onClick={onModel} label="Beispiel-3D-Modell hinzufügen"><IconCube {...icon} /></ToolBtn>
         <Sep />
         <ToolBtn onClick={onUndo} label="Rückgängig (Strg+Z)"><IconArrowBackUp {...icon} /></ToolBtn>
         <ToolBtn onClick={onRedo} label="Wiederholen (Strg+Umschalt+Z)"><IconArrowForwardUp {...icon} /></ToolBtn>

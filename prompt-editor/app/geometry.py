@@ -45,8 +45,9 @@ def add_parts(scene, bezug, teile):
     anchor = scene.geometry.get(bezug) if bezug is not None else scene
     if anchor is None or anchor.bounds is None:
         raise ValueError("Der Bezug braucht eine gültige Bounding Box.")
-    center = anchor.bounds.mean(0)
-    extents = np.ptp(anchor.bounds, axis=0)
+    bounds = anchor.bounds
+    center = bounds.mean(0)
+    extents = np.ptp(bounds, axis=0)
     # Auch ein flaches Bezugsteil kann ein Teil mit Höhe tragen.
     extents = np.where(extents > 0, extents, extents.max())
     used = {name.lower() for name in scene.geometry}
