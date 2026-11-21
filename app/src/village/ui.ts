@@ -2,16 +2,16 @@
 // Bewusst ohne Framework, damit das Skizzendorf schlank bleibt.
 
 // Platzhalter – vor dem Livegang ersetzen
-const CONTACT_MAIL = 'kontakt@beispiel.de';
+const CONTACT_MAIL = 'contact@example.com';
 const TOOL_URL = '/';
 // Museum: fertiges Projektvideo. Datei hier ablegen: app/public/museum/projekt.mp4 (optional Vorschaubild projekt.jpg)
 const MUSEUM_VIDEO = '/museum/projekt.mp4';
 const MUSEUM_POSTER = '/museum/projekt.jpg';
-const MUSEUM_TITLE = 'Unser erstes Projekt';
-const MUSEUM_NOTE = 'Von der Skizze über SketchToCAD bis in die fertige Szene.'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
+const MUSEUM_TITLE = 'Our first project';
+const MUSEUM_NOTE = 'From a sketch via SketchToCAD to the finished scene.'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
 
-export const CLAIM = 'Gestalten statt würfeln.';
-export const SUBLINE = 'Prompten ist schnell. Zeichnen ist genau. SketchToCAD verbindet beides – direkt in 3D.';
+export const CLAIM = 'Design, don’t gamble.';
+export const SUBLINE = 'Prompting is fast. Sketching is precise. SketchToCAD gives you both – straight to 3D.';
 /** Design-Varianten für den Claim im Intro, umschaltbar per ?claim=titel|hand|unten */
 export type ClaimVariant = 'titel' | 'hand' | 'unten';
 
@@ -129,20 +129,20 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   title.setAttribute('aria-live', 'polite');
   title.innerHTML = variant === 'hand'
     ? `<h1 class="vtitle-h"><span class="vtitle-reveal">${CLAIM}</span></h1><p class="vtitle-sub">${SUBLINE}</p>`
-    : `<p class="vtitle-kicker">3D-Assets für Film &amp; Postproduktion</p><h1 class="vtitle-h">Gestalten statt <span class="accent">würfeln.${SWOOSH}</span></h1><p class="vtitle-sub">${SUBLINE}</p>${TOOLS}`;
+    : `<p class="vtitle-kicker">3D assets for film &amp; post-production</p><h1 class="vtitle-h">Design, don’t <span class="accent">gamble.${SWOOSH}</span></h1><p class="vtitle-sub">${SUBLINE}</p>${TOOLS}`;
   document.body.appendChild(title);
 
   // ---------- Banner nach der Landung: Claim + wichtigste Handlung
   const hero = el('section', 'vhero');
   hero.innerHTML = `
-    <p class="vhero-kicker">Für Film, Post &amp; Art Departments</p>
-    <h2 class="vhero-h">Gestalten statt <span class="accent">würfeln.${SWOOSH}</span></h2>
+    <p class="vhero-kicker">For film, post &amp; art departments</p>
+    <h2 class="vhero-h">Design, don’t <span class="accent">gamble.${SWOOSH}</span></h2>
     <p class="vhero-sub">${SUBLINE}</p>
     <div class="vhero-actions">
-      <button class="vcta" data-act="tool" data-house="Werkstatt">Jetzt 3D-Modell erstellen</button>
-      <button class="vghost" data-act="well">So funktioniert’s</button>
+      <button class="vcta" data-act="tool" data-house="Workshop">Create a 3D model now</button>
+      <button class="vghost" data-act="well">How it works</button>
     </div>
-    <button class="vhero-x" data-act="hero-close" aria-label="Banner schließen">×</button>`;
+    <button class="vhero-x" data-act="hero-close" aria-label="Close banner">×</button>`;
   document.body.appendChild(hero);
   let heroShownAt = 0;
   const collapseHero = () => {
@@ -153,27 +153,27 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   // ---------- Ankunfts-Quest (wie im Spiel): Aufgaben-Zettel + Steuerungshinweis
   const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const TASKS: [QuestKey, string, string][] = touch
-    ? [['look', 'Umsehen', 'mit dem Finger wischen'], ['walk', 'Herumlaufen', 'Joystick links unten'],
-       ['well', 'Brunnen antippen', 'so funktioniert’s'], ['museum', 'Museum erkunden', 'ein fertiges Projekt ansehen'], ['house', 'Eine Werkstatt besuchen', 'ein Haus antippen']]
-    : [['look', 'Umsehen', 'Maus gedrückt ziehen'], ['walk', 'Herumlaufen', 'W A S D oder Pfeiltasten'],
-       ['well', 'Brunnen anklicken', 'so funktioniert’s'], ['museum', 'Museum erkunden', 'ein fertiges Projekt ansehen'], ['house', 'Eine Werkstatt besuchen', 'ein Haus anklicken']];
+    ? [['look', 'Look around', 'swipe with your finger'], ['walk', 'Walk around', 'joystick bottom left'],
+       ['well', 'Tap the well', 'how it works'], ['museum', 'Explore the museum', 'watch a finished project'], ['house', 'Visit a workshop', 'tap a house']]
+    : [['look', 'Look around', 'click and drag'], ['walk', 'Walk around', 'W A S D or arrow keys'],
+       ['well', 'Click the well', 'how it works'], ['museum', 'Explore the museum', 'watch a finished project'], ['house', 'Visit a workshop', 'click a house']];
   const quest = el('aside', 'vquest');
   quest.setAttribute('aria-label', 'Quest');
   quest.innerHTML = `
-    <button class="vquest-tab" data-act="quest-toggle" aria-label="Quest ein-/ausklappen"><span>!</span> Quest</button>
+    <button class="vquest-tab" data-act="quest-toggle" aria-label="Show or hide quest"><span>!</span> Quest</button>
     <div class="vquest-body">
       <p class="vquest-kicker">Quest</p>
-      <h3 class="vquest-h">Willkommen im Skizzendorf</h3>
+      <h3 class="vquest-h">Welcome to Sketch Village</h3>
       <ul>${TASKS.map(([k, t, h]) => `<li data-q="${k}"><svg class="qbox" viewBox="0 0 24 24" aria-hidden="true"><path class="qframe" d="M4 5 C 9 3.5, 16 4.2, 20 4.6 C 20.5 10, 20 15, 19.6 20 C 14 20.4, 9 20.2, 4.4 19.6 C 3.8 14, 4 9, 4 5"/><path class="qtick" pathLength="1" d="M6 12 C 8 13.5, 9.5 15.5, 10.5 17.5 C 12.5 12, 16 7, 22 2.5"/></svg><span class="qt"><b>${t}</b><small>${h}</small></span></li>`).join('')}</ul>
-      <p class="vquest-done">Quest erfüllt! Viel Spaß beim Gestalten.</p>
+      <p class="vquest-done">Quest complete! Have fun creating.</p>
     </div>`;
   document.body.appendChild(quest);
   const keys = el('div', 'vkeys');
   keys.innerHTML = touch
-    ? `<span class="vkeys-t">Joystick links unten: laufen · Wischen: umsehen</span>`
-    : `<span class="vkeys-wasd"><kbd class="k-w">W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span class="vkeys-t">laufen</span>
-       <span class="vkeys-mouse" aria-hidden="true"><i></i></span><span class="vkeys-t">ziehen: umsehen</span>
-       <span class="vkeys-t vkeys-click">Häuser &amp; Brunnen anklicken</span>`;
+    ? `<span class="vkeys-t">Joystick bottom left: walk · Swipe: look around</span>`
+    : `<span class="vkeys-wasd"><kbd class="k-w">W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span class="vkeys-t">walk</span>
+       <span class="vkeys-mouse" aria-hidden="true"><i></i></span><span class="vkeys-t">drag: look around</span>
+       <span class="vkeys-t vkeys-click">Click houses &amp; the well</span>`;
   document.body.appendChild(keys);
   const doneSet = new Set<QuestKey>();
   let questShown = false;
@@ -188,16 +188,30 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     }
   }
 
+  // ---------- „Sketch now“: immer sichtbar links – erklärt das Produkt in einer Sekunde (Skizze wird zu 3D)
+  const sketchNow = el('button', 'vsketch');
+  sketchNow.type = 'button';
+  sketchNow.dataset.act = 'tool';
+  sketchNow.dataset.house = 'Workshop';
+  sketchNow.setAttribute('aria-label', 'Sketch now – turn a drawing into a 3D model');
+  sketchNow.innerHTML = `
+    <svg class="vsketch-cube" viewBox="0 0 80 78" aria-hidden="true">
+      <polygon class="f top" points="40,8 72,21 40,34 8,21"/><polygon class="f left" points="8,21 40,34 40,70 8,57"/><polygon class="f right" points="72,21 40,34 40,70 72,57"/>
+      <path class="ln" pathLength="1" d="M40 8 L72 21 L40 34 L8 21 Z M8 21 L8 57 L40 70 L72 57 L72 21 M40 34 L40 70"/>
+    </svg>
+    <span class="vsketch-txt"><b>Sketch now →</b><small>Draw it – get a 3D model for your scene.</small></span>`;
+  document.body.appendChild(sketchNow);
+
   // ---------- Leiste oben
   const bar = el('header', 'vbar');
   bar.innerHTML = `
-    <button class="vbar-logo" data-act="well" aria-label="Zum Brunnen"><span class="vbar-word">Sketch<span>To</span>CAD</span><small>3D-Assets für Film · USD-Export</small></button>
+    <button class="vbar-logo" data-act="well" aria-label="To the well"><span class="vbar-word">Sketch<span>To</span>CAD</span><small>3D assets for film · USD export</small></button>
     <nav class="vbar-nav">
-      <button data-act="project">Projekt</button>
-      <a href="mailto:${CONTACT_MAIL}">Kontakt</a>
-      <button data-act="imprint">Impressum</button>
-      <button data-act="privacy">Datenschutz</button>
-      <button class="vbar-cta" data-act="tool" data-house="Werkstatt">3D-Modell erstellen</button>
+      <button data-act="project">About</button>
+      <a href="mailto:${CONTACT_MAIL}">Contact</a>
+      <button data-act="imprint">Imprint</button>
+      <button data-act="privacy">Privacy</button>
+      <button class="vbar-cta" data-act="tool" data-house="Workshop">Create 3D model</button>
     </nav>`;
   document.body.appendChild(bar);
 
@@ -236,9 +250,9 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   shop.innerHTML = `
     <div class="vshop-head">
       <span class="vshop-title"></span>
-      <button class="vbtn" data-act="close">← Zurück ins Dorf</button>
+      <button class="vbtn" data-act="close">← Back to the village</button>
     </div>
-    <iframe class="vshop-frame" title="Werkstatt"></iframe>`;
+    <iframe class="vshop-frame" title="Workshop"></iframe>`;
   document.body.appendChild(shop);
   const frame = shop.querySelector('iframe')!;
 
@@ -252,8 +266,8 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       ? `<div class="pad-board" aria-hidden="true"></div><div class="pad-sheet s2" aria-hidden="true"></div><div class="pad-sheet s1" aria-hidden="true"></div>
          <div class="pad-paper${kind === 'museum' ? ' plain' : ''}"><div class="pad-ink">${html}</div>${crumple(1 + Math.floor(Math.random() * 90))}<div class="pad-light" aria-hidden="true"></div></div>
          <span class="ear ear-tr" aria-hidden="true"></span><span class="ear ear-bl" aria-hidden="true"></span>
-         ${spiral(kind === 'museum' ? 940 : 560)}<button class="vcard-x hw-x" data-act="close" aria-label="Schließen">×</button>`
-      : `<button class="vcard-x" data-act="close" aria-label="Schließen">×</button>${html}`;
+         ${spiral(kind === 'museum' ? 940 : 560)}<button class="vcard-x hw-x" data-act="close" aria-label="Close">×</button>`
+      : `<button class="vcard-x" data-act="close" aria-label="Close">×</button>${html}`;
     if (pad) {
       scribble(card);
       requestAnimationFrame(() => fitPad());
@@ -288,63 +302,63 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   }
 
   const WELL = `
-    <div class="pad-head hw">Notiz vom Brunnen</div>
-    <h2 class="pad-h hw">Gestalten statt würfeln!</h2>
-    <p class="hw">Prompten ist schnell. Zeichnen ist genau.<br>SketchToCAD verbindet beides – direkt in 3D.</p>
+    <div class="pad-head hw">Note from the well</div>
+    <h2 class="pad-h hw">Design, don’t gamble!</h2>
+    <p class="hw">Prompting is fast. Sketching is precise.<br>SketchToCAD gives you both – straight to 3D.</p>
     <ol class="pad-list">
-      <li class="hw"><b>Skizzieren</b> – wie auf Papier, nur unendlich groß.</li>
-      <li class="hw"><b>Dazu sagen</b>, was die Skizze nicht zeigt: „Holz, alt, 10 cm länger“.</li>
-      <li class="hw"><b>Teile anpassen</b> – einzeln und auf den Zentimeter.</li>
-      <li class="hw"><b>Ab in die Szene</b> – als USD direkt in Houdini, Unreal oder Blender.</li>
+      <li class="hw"><b>Sketch</b> – like on paper, just endless.</li>
+      <li class="hw"><b>Say</b> what the sketch can’t show: “wood, old, 10 cm longer”.</li>
+      <li class="hw"><b>Adjust parts</b> – one by one, down to the centimetre.</li>
+      <li class="hw"><b>Into the scene</b> – as USD, straight into Houdini, Unreal or Blender.</li>
     </ol>
     <div class="pad-links">
-      <button class="pad-link main" data-act="tool" data-house="Werkstatt"><span class="hw">→ Jetzt 3D-Modell erstellen!</span>${CIRCLED}</button>
-      <button class="pad-link minor" data-act="replay"><span class="hw">Intro nochmal ansehen</span>${UNDERLINED}</button>
+      <button class="pad-link main" data-act="tool" data-house="Workshop"><span class="hw">→ Create a 3D model now!</span>${CIRCLED}</button>
+      <button class="pad-link minor" data-act="replay"><span class="hw">Watch the intro again</span>${UNDERLINED}</button>
     </div>
-    <p class="pad-pencil hw">(Prototyp – unser Modell lernt noch)</p>`;
+    <p class="pad-pencil hw">(Prototype – our model is still learning)</p>`;
 
   const PROJECT = `
-    <div class="pad-head hw">Notiz: Über uns</div>
-    <h2 class="pad-h hw">Was ist SketchToCAD?</h2>
-    <p class="hw">Prompten geht schnell, trifft aber selten genau das, was du im Kopf hast. Zeichnen ist genau, aber langsam bis zum fertigen 3D-Modell.</p>
-    <p class="hw">Wir verbinden beides: Du skizzierst, sagst dazu, was du willst – und bekommst ein 3D-Modell, das du Teil für Teil weiterbearbeitest.</p>
-    <p class="hw"><b>Für wen?</b> Filmproduktionen und Postproduktion, die Hinter- und Vordergründe bauen – gemeinsam mit dem Art Department.</p>
-    <p class="hw"><b>Was kommt raus?</b> Saubere 3D-Elemente mit benannten Teilen und echten Maßen – als USD, bereit für Houdini, Unreal und Blender.</p>
+    <div class="pad-head hw">Note: About us</div>
+    <h2 class="pad-h hw">What is SketchToCAD?</h2>
+    <p class="hw">Prompting is fast, but rarely gives you exactly what you have in mind. Sketching is precise, but slow to get to a finished 3D model.</p>
+    <p class="hw">We combine both: you sketch, say what you want – and get a 3D model you can keep refining, part by part.</p>
+    <p class="hw"><b>Who is it for?</b> Film and post-production teams building backgrounds and foregrounds – together with the art department.</p>
+    <p class="hw"><b>What comes out?</b> Clean 3D elements with named parts and real-world scale – as USD, ready for Houdini, Unreal and Blender.</p>
     <div class="pad-links">
-      <button class="pad-link main" data-act="well"><span class="hw">→ So funktioniert’s</span>${CIRCLED}</button>
-      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Schreib uns</span>${UNDERLINED}</a>
+      <button class="pad-link main" data-act="well"><span class="hw">→ How it works</span>${CIRCLED}</button>
+      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Write to us</span>${UNDERLINED}</a>
     </div>`;
 
   const IMPRINT = `
-    <div class="pad-head hw">Notiz: Rechtliches</div>
-    <h2 class="pad-h hw">Impressum</h2>
-    <p class="hw"><b>Verantwortlich für Organisation:</b><br>Craig und Maik</p>
-    <p class="pad-todo hw">Vor dem Livegang ergänzen: voller Name, Anschrift, E-Mail (§ 5 DDG)!</p>
+    <div class="pad-head hw">Note: Legal</div>
+    <h2 class="pad-h hw">Imprint</h2>
+    <p class="hw"><b>Responsible for organisation:</b><br>Craig and Maik</p>
+    <p class="pad-todo hw">Before going live: add full name, postal address, e-mail (§ 5 DDG)!</p>
     <div class="pad-links">
-      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Kontakt: ${CONTACT_MAIL}</span>${UNDERLINED}</a>
+      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Contact: ${CONTACT_MAIL}</span>${UNDERLINED}</a>
     </div>`;
 
   const PRIVACY = `
-    <div class="pad-head hw">Notiz: Rechtliches</div>
-    <h2 class="pad-h hw">Datenschutz</h2>
-    <p class="hw">Diese Seite setzt keine Cookies, nutzt kein Tracking und speichert keine Formulardaten.</p>
-    <p class="pad-todo hw">Vor dem Livegang: vollständige Datenschutzerklärung (Verantwortliche, Hosting, Server-Logs, deine Rechte)!</p>
+    <div class="pad-head hw">Note: Legal</div>
+    <h2 class="pad-h hw">Privacy</h2>
+    <p class="hw">This site sets no cookies, uses no tracking and stores no form data.</p>
+    <p class="pad-todo hw">Before going live: full privacy policy (controller, hosting, server logs, your rights)!</p>
     <div class="pad-links">
-      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Fragen? Schreib uns</span>${UNDERLINED}</a>
+      <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Questions? Write to us</span>${UNDERLINED}</a>
     </div>`;
 
   const MUSEUM = `
-    <div class="pad-head hw">Notiz: Museum</div>
-    <h2 class="pad-h hw">Exponat Nr. 1 – ${MUSEUM_TITLE}</h2>
+    <div class="pad-head hw">Note: Museum</div>
+    <h2 class="pad-h hw">Exhibit No. 1 – ${MUSEUM_TITLE}</h2>
     <figure class="pin">
       <span class="tape tl" aria-hidden="true"></span><span class="tape tr" aria-hidden="true"></span>
       <video class="pin-video" controls playsinline preload="metadata" poster="${MUSEUM_POSTER}" src="${MUSEUM_VIDEO}"></video>
-      <div class="pin-empty"><span class="hw">Hier läuft bald unser fertiges Projekt.</span><small>Video ablegen unter app/public${MUSEUM_VIDEO}</small></div>
+      <div class="pin-empty"><span class="hw">Our finished project will be showing here soon.</span><small>Put the video at app/public${MUSEUM_VIDEO}</small></div>
     </figure>
     <p class="pin-caption hw">${MUSEUM_NOTE}</p>
-    <p class="pin-flow hw">Skizze → SketchToCAD → USD → Szene</p>
+    <p class="pin-flow hw">Sketch → SketchToCAD → USD → Scene</p>
     <div class="pad-links">
-      <button class="pad-link minor" data-act="close"><span class="hw">← zurück ins Dorf</span>${UNDERLINED}</button>
+      <button class="pad-link minor" data-act="close"><span class="hw">← back to the village</span>${UNDERLINED}</button>
     </div>`;
 
   function openMuseum() {
@@ -359,10 +373,10 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   }
 
   function openTool(house: string) {
-    if (house !== 'Werkstatt') questDone('house');
+    if (house !== 'Workshop') questDone('house');
     heroShownAt = 0; collapseHero();
     veil.classList.remove('on');
-    (shop.querySelector('.vshop-title') as HTMLElement).textContent = `Werkstatt · ${house}`;
+    (shop.querySelector('.vshop-title') as HTMLElement).textContent = house === 'Workshop' ? 'Workshop' : `Workshop · ${house}`;
     const url = `${TOOL_URL}?from=village&house=${encodeURIComponent(house)}`;
     if (!frame.src.endsWith(url)) frame.src = url;
     shop.classList.add('on');
@@ -381,14 +395,14 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     else if (act === 'project') showCard(PROJECT, true);
     else if (act === 'imprint') showCard(IMPRINT, true);
     else if (act === 'privacy') showCard(PRIVACY, true);
-    else if (act === 'tool') openTool(t.dataset.house ?? 'Werkstatt');
+    else if (act === 'tool') openTool(t.dataset.house ?? 'Workshop');
     else if (act === 'replay') { closeAll(); opts.onReplayIntro(); }
   });
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); closeAll(); } }, true);
 
   return {
     setMode(mode) {
-      jump.textContent = mode === 'intro' ? 'Intro überspringen ›' : '⟲ Zurück zum Brunnen';
+      jump.textContent = mode === 'intro' ? 'Skip intro ›' : '⟲ Back to the well';
       jump.dataset.mode = mode;
       bar.classList.toggle('quiet', mode === 'intro');
     },

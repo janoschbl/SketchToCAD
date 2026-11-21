@@ -69,7 +69,7 @@ export function createDrown(opts: { camera: THREE.PerspectiveCamera; eye: number
   ov.innerHTML = `<div class="vdrown-water"><svg class="vdrown-wave" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 22 C 100 6, 200 36, 300 20 S 500 6, 600 20 S 800 36, 900 20 S 1100 6, 1200 20 V40 H0 Z"/></svg><div class="vdrown-rays"></div></div>
     <div class="vdrown-bubbles">${Array.from({ length: 16 }, (_, i) => `<i style="left:${(6 + ((i * 37) % 88)).toFixed(0)}%;animation-delay:${((i * 0.23) % 1.9).toFixed(2)}s;width:${6 + (i % 4) * 4}px;height:${6 + (i % 4) * 4}px"></i>`).join('')}</div>
     <div class="vdrown-dark"></div>
-    <p class="vdrown-msg">Platsch! Zum Glück gibt’s den Brunnen.</p>`;
+    <p class="vdrown-msg">Splash! Good thing there’s a well.</p>`;
   document.body.appendChild(ov);
   const setV = (k: string, v: number) => ov.style.setProperty(k, v.toFixed(3));
 

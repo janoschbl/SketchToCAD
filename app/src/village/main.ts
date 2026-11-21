@@ -75,30 +75,22 @@ const paths: PathDef[] = [
 // Jedes Haus schaut zum Brunnen – hier sollen später die Werkzeuge hängen (umfärben, Sticker, Prompt).
 const RING_R = PLAZA_R + 1.95;
 const RING = [
-  { a: 0.43, wall: '#f3dcb2', roof: '#c4493a', w: 3.0, label: 'Torhaus Ost' },
-  { a: 1.36, wall: '#efd2a8', roof: '#3f7f86', w: 3.4, label: 'Blaues Haus' },
-  { a: 1.98, wall: '#f6e2c4', roof: '#9b4f5f', w: 3.0, d: 2.7, h: 1.9, label: 'Rosenhaus' },
+  { a: 0.43, wall: '#f3dcb2', roof: '#c4493a', w: 3.0, label: 'East Gatehouse' },
+  { a: 1.36, wall: '#efd2a8', roof: '#3f7f86', w: 3.4, label: 'Blue House' },
+  { a: 1.98, wall: '#f6e2c4', roof: '#9b4f5f', w: 3.0, d: 2.7, h: 1.9, label: 'Rose Cottage' },
   { a: 2.6, wall: '#f4dcc0', roof: '#d39a3a', w: 3.3, label: 'Museum' },          // direkt hinter dem Brunnen (rechts, frei sichtbar) – Projektvideo
-  { a: 3.62, wall: '#eed7b8', roof: '#5d7f4a', w: 3.3, label: 'Kräuterhaus' },
-  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Rathaus' },
-  { a: -1.0, wall: '#f0d8b6', roof: '#6a5a9a', w: 3.2, label: 'Fliederhaus' },
-  { a: -0.42, wall: '#f3dcb2', roof: '#c26a3a', w: 3.0, label: 'Torhaus West' },
+  { a: 3.62, wall: '#eed7b8', roof: '#5d7f4a', w: 3.3, label: 'Herb House' },
+  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Town Hall' },
+  { a: -1.0, wall: '#f0d8b6', roof: '#6a5a9a', w: 3.2, label: 'Lilac House' },
+  { a: -0.42, wall: '#f3dcb2', roof: '#c26a3a', w: 3.0, label: 'West Gatehouse' },
 ];
 const houses: { x: number; z: number; ry: number; wall: string; roof: string; w?: number; d?: number; h?: number; label: string; door?: boolean }[] = [
   ...RING.map((h) => ({ ...h, x: Math.sin(h.a) * RING_R, z: Math.cos(h.a) * RING_R, ry: h.a + Math.PI })),
-  { x: -5, z: -16, ry: 0.15, wall: '#efd6b0', roof: '#b85a3c', w: 3.2, label: 'Bäckerei', door: true },
-  { x: 7.5, z: -18, ry: -0.25, wall: '#f6e2c4', roof: '#4f7f8a', w: 2.9, d: 2.6, h: 1.9, label: 'Fischerhaus', door: true },
+  { x: -5, z: -16, ry: 0.15, wall: '#efd6b0', roof: '#b85a3c', w: 3.2, label: 'Bakery', door: true },
+  { x: 7.5, z: -18, ry: -0.25, wall: '#f6e2c4', roof: '#4f7f8a', w: 2.9, d: 2.6, h: 1.9, label: 'Fisher’s House', door: true },
 ];
-// Museums-Varianten zum Vergleichen: ?museum=heimat | scheune | schule | gross (Standard: gross = Landesmuseum-Miniatur)
-const MUSEUM_VARIANT = new URLSearchParams(location.search).get('museum') ?? 'gross';
-function museumVariant() {
-  if (MUSEUM_VARIANT === 'heimat') return P.museumHeimat();
-  if (MUSEUM_VARIANT === 'scheune') return P.museumScheune();
-  if (MUSEUM_VARIANT === 'schule') return P.museumSchule();
-  const g = P.museum(); g.scale.setScalar(0.72); return g;
-}
 houses.forEach((h, i) => {
-  defs.push({ id: 'house' + i, label: h.label, make: () => (h.label === 'Museum' ? museumVariant() : P.cottage(h)), x: h.x, z: h.z, ry: h.ry, col: 2.9 });
+  defs.push({ id: 'house' + i, label: h.label, make: () => (h.label === 'Museum' ? P.museumHeimat() : P.cottage(h)), x: h.x, z: h.z, ry: h.ry, col: 2.9 });
   if (!h.door) return;
   // Hausweg: von der Tür zum nächsten Punkt auf einer Hauptstraße
   const [fx, fz] = front(h.x, h.z, h.ry, 2.8);
@@ -114,12 +106,12 @@ houses.forEach((h, i) => {
 });
 
 const add = (d: Def) => defs.push(d);
-add({ id: 'well', label: 'Brunnen', make: P.well, x: 0, z: 0, col: 1.3 });
-add({ id: 'windmill', label: 'Windmühle', make: P.windmill, x: 1.5, z: -33, col: 2.0 });
-add({ id: 'stall', label: 'Marktstand', make: P.stall, x: -12, z: -3.2, ry: 1.75, col: 1.9 });
-add({ id: 'campfire', label: 'Lagerfeuer', make: P.campfire, x: 5.2, z: 10, ry: 0.2, col: 1.4 });
-add({ id: 'garden1', label: 'Kürbisbeet', make: P.garden, x: -9, z: -35, ry: 0.15, col: 3.4 });
-add({ id: 'garden2', label: 'Gemüsegarten', make: P.garden, x: 12, z: -35, ry: -0.15, col: 3.4 });
+add({ id: 'well', label: 'Well', make: P.well, x: 0, z: 0, col: 1.3 });
+add({ id: 'windmill', label: 'Windmill', make: P.windmill, x: 1.5, z: -33, col: 2.0 });
+add({ id: 'stall', label: 'Market Stall', make: P.stall, x: -12, z: -3.2, ry: 1.75, col: 1.9 });
+add({ id: 'campfire', label: 'Campfire', make: P.campfire, x: 5.2, z: 10, ry: 0.2, col: 1.4 });
+add({ id: 'garden1', label: 'Pumpkin Patch', make: P.garden, x: -9, z: -35, ry: 0.15, col: 3.4 });
+add({ id: 'garden2', label: 'Vegetable Garden', make: P.garden, x: 12, z: -35, ry: -0.15, col: 3.4 });
 add({ id: 'hay1', make: P.hay, x: -3, z: -40, ry: 0.4, col: 1.6 });
 add({ id: 'hay2', make: P.hay, x: 6.5, z: -40, ry: -0.6, col: 1.6 });
 add({ id: 'crates', make: P.crates, x: -13.6, z: -0.6, ry: 0.4, col: 1.1 });
@@ -130,7 +122,7 @@ add({ id: 'bench2', make: P.bench, x: 10.5, z: 12.6, ry: -2.4, col: 0.9 });
 add({ id: 'bench3', make: P.bench, x: -18.5, z: 22.8, ry: 2.3, col: 0.9 });
 add({ id: 'plazaBench', make: P.bench, x: 3.7, z: -1.3, ry: -1.24, col: 1 });
 add({ id: 'millBench', make: P.bench, x: -1.5, z: -26, ry: 1.3, col: 1 });
-const dock = (id: string, x: number, z: number, p: Blocker) => add({ id, label: 'Steg', make: P.dock, x, z, ry: Math.atan2(-(p.x - x), -(p.z - z)), col: 0 });
+const dock = (id: string, x: number, z: number, p: Blocker) => add({ id, label: 'Jetty', make: P.dock, x, z, ry: Math.atan2(-(p.x - x), -(p.z - z)), col: 0 });
 add({ id: 'bridge', make: P.footbridge, x: 17, z: 15, col: 0 });
 dock('dock1', 27, -3.9, ponds[2]);
 dock('dock2', -21.4, 21, ponds[1]);
@@ -403,7 +395,7 @@ canvas.addEventListener('pointerup', (e) => {
   setHover(null);
   sfx.pop(1.1);
   if (o.id === 'well') { wellSeen = true; ui.openWell(); }
-  else { visited.add(o.id); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Werkstatt'); }
+  else { visited.add(o.id); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Workshop'); }
 });
 canvas.addEventListener('pointercancel', endDrag);
 
@@ -459,7 +451,7 @@ addEventListener('blur', () => keys.clear());
 // Kollision: einfache Kreise je Objekt
 const colliders = defs.map((d, i) => ({
   o: objs[i], x: d.x, z: d.z,
-  r: d.id.startsWith('house') ? (d.label === 'Museum' ? 2.4 : 2.25) : d.id === 'well' ? 1.4 : d.id.startsWith('tree') ? 0.55 : d.col > 0 ? Math.max(0.3, d.col * 0.6) : 0,
+  r: d.id.startsWith('house') ? (d.label === 'Museum' ? 2.3 : 2.25) : d.id === 'well' ? 1.4 : d.id.startsWith('tree') ? 0.55 : d.col > 0 ? Math.max(0.3, d.col * 0.6) : 0,
 })).filter((c) => c.r > 0);
 // Wasser ist jetzt begehbar: am Rand watet man, im tiefen Wasser geht man unter (siehe drown.ts)
 function walkable(x: number, z: number) {
@@ -820,7 +812,7 @@ addEventListener('keydown', (e) => {
   if (k === '1') location.reload();
   else if (k === '2') jumpToWell();
   else if (k === '3') { if (time < T_FP) jumpToWell(); setTimeout(() => { wellSeen = true; ui.openWell(); }, time < T_FP ? 700 : 0); }
-  else if (k === '4') { if (time < T_FP) skipIntro(); ui.openTool('Werkstatt'); }
+  else if (k === '4') { if (time < T_FP) skipIntro(); ui.openTool('Workshop'); }
   else if (k === '5') platschDemo();
   else if (k === '6') { if (time < T_FP) skipIntro(); ui.openMuseum(); }
 });
@@ -881,7 +873,7 @@ function setHover(o: SketchObj | null, x = 0, y = 0) {
     hovered = o;
     document.body.classList.toggle('hovering', !!o);
   }
-  ui.showHover(o ? (o.id === 'well' ? 'Brunnen · So funktioniert’s' : o.label === 'Museum' ? 'Museum · Projekt ansehen' : `${o.label} · Werkstatt`) : null, x, y);
+  ui.showHover(o ? (o.id === 'well' ? 'Well · How it works' : o.label === 'Museum' ? 'Museum · Watch the project' : `${o.label} · Workshop`) : null, x, y);
 }
 // Hinweis über dem Brunnen nach der Landung, bis man ihn einmal geöffnet hat
 let wellSeen = false;
@@ -889,7 +881,7 @@ const hint = document.createElement('div');
 hint.className = 'vhint';
 // Steht vor dem Brunnen auf dem Platz, Pfeil zeigt nach oben auf den Brunnen
 hint.innerHTML = `<div class="vhint-in"><svg viewBox="0 0 46 54" aria-hidden="true"><path d="M23 51 C 28 40, 18 30, 24 18 M24 17 C 25 13, 25 9, 23 4 M23 4 L 15 12 M23 4 L 31 11"/></svg>
-  <span>Klick auf den Brunnen!</span></div>`;
+  <span>Click the well!</span></div>`;
 document.body.appendChild(hint);
 const hintPos = V3(0, 0, 0);
 function updateHint(t: number) {
@@ -915,11 +907,11 @@ const marks = houseObjs.map((o) => {
   const m = document.createElement('button');
   m.className = 'vmark';
   m.type = 'button';
-  m.setAttribute('aria-label', `${o.label}: Werkstatt öffnen`);
+  m.setAttribute('aria-label', `${o.label}: open workshop`);
   const isMuseum = o.label === 'Museum';
   if (isMuseum) m.classList.add('museum');
-  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>${isMuseum ? '▶' : '!'}</b><em>${isMuseum ? 'Museum · Projekt ansehen' : o.label}</em></span>`;
-  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Werkstatt'); });
+  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>${isMuseum ? '▶' : '!'}</b><em>${isMuseum ? 'Museum · Watch the project' : o.label}</em></span>`;
+  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Workshop'); });
   document.body.appendChild(m);
   return { o, m, occluded: false };
 });
