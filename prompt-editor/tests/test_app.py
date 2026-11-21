@@ -2,34 +2,21 @@
 Start: python -m pytest -q tests   (im Ordner sketchtocad_app)"""
 import io, json, os, sys, tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 os.environ["LLM_MODE"] = "mock"
 os.environ["DATA_DIR"] = tempfile.mkdtemp()
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
-import trimesh
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app import model_io, planner, cad_sandbox
+from app.demo import make_testauto
 from app.server import app
 
 c = TestClient(app)
-
-
-def make_testauto_glb() -> bytes:
-    s = trimesh.Scene()
-    def add(name, m, rgb):
-        model_io.set_color(m, rgb); s.add_geometry(m, node_name=name, geom_name=name)
-    add("karosserie", trimesh.creation.box([4, 0.8, 1.8]).apply_translation([0, 0.8, 0]), [200, 30, 30])
-    add("kabine", trimesh.creation.box([2, 0.7, 1.6]).apply_translation([-0.2, 1.55, 0]), [200, 30, 30])
-    for n, x, z in [("vl", 1.3, 0.95), ("vr", 1.3, -0.95), ("hl", -1.3, 0.95), ("hr", -1.3, -0.95)]:
-        add(f"reifen_{n}", trimesh.creation.cylinder(radius=0.45, height=0.3).apply_translation([x, 0.45, z]), [25, 25, 25])
-        add(f"felge_{n}", trimesh.creation.cylinder(radius=0.25, height=0.32).apply_translation([x, 0.45, z]), [150, 150, 150])
-    for n, z in [("l", 0.6), ("r", -0.6)]:
-        add(f"scheinwerfer_{n}", trimesh.creation.box([0.1, 0.2, 0.4]).apply_translation([2.02, 0.9, z]), [255, 240, 180])
-    add("spoiler", trimesh.creation.box([0.3, 0.1, 1.6]).apply_translation([-1.9, 1.45, 0]), [30, 30, 30])
-    return s.export(file_type="glb")
 
 
 def fps(sid, v):
@@ -38,7 +25,7 @@ def fps(sid, v):
 
 
 def upload():
-    r = c.post("/api/upload", files={"datei": ("auto.glb", make_testauto_glb(), "model/gltf-binary")})
+    r = c.post("/api/upload", files={"datei": ("auto.glb", make_testauto().export(file_type="glb"), "model/gltf-binary")})
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -126,7 +113,136 @@ def test_openai_anfrage_struktur():
     assert req["model"] == "gpt-6.1-sol" and req["tools"] and req["parallel_tool_calls"]
     content = req["input"][0]["content"]
     assert content[0]["type"] == "input_text" and "horn" in content[0]["text"]
-    assert content[-1] == {"type": "input_image", "image_url": "data:image/png;base64,AAAA"}
+    assert content[-1] == {"type": "input_image", "image_url": "data:image/png;base64,AAAA", "detail": "low"}
     for t in req["tools"]:
         assert t["type"] == "function" and t["parameters"]["additionalProperties"] is False
         assert set(t["parameters"]["required"]) == set(t["parameters"]["properties"])  # strict-kompatibel
+
+
+
+def test_einfache_farbe_auch_im_openai_modus_lokal(monkeypatch):
+    monkeypatch.setenv("LLM_MODE", "openai")
+    sid = upload()["session"]
+    res = edit(sid, "Mach die Felgen weiß")
+    assert res["neue_version"]
+    assert res["nutzung"]["api_aufrufe"] == res["nutzung"]["input_tokens"] == 0
+
+
+def test_heckfluegel_hinzufuegen_und_undo():
+    sid = upload()["session"]
+    original = fps(sid, 1)
+    res = edit(sid, "Füge einen Heckflügel hinzu")
+    assert res["aufrufe"][0]["ergebnis"] == ["heckfluegel"]
+    after = fps(sid, 2)
+    assert set(after) - set(original) == {"heckfluegel"}
+    assert {n: after[n] for n in original} == original
+    assert c.post(f"/api/{sid}/undo").json()["version"] == 1
+
+
+def test_umbau_auf_acht_und_zwei_sitze(monkeypatch):
+    sid = upload()["session"]
+    original = fps(sid, 1)
+    positions = [[x, 0, z] for x in (-0.36, -0.12, 0.12, 0.36) for z in (-0.24, 0.24)]
+    calls = [{"name": "baue", "arguments": {"bezug": "kabine", "teile": [
+        {"name": "sítz", "form": "profil", "quelle": None, "positionen": positions,
+         "profil": [[0, 0], [1, 0], [1, 0.25], [0.25, 0.25], [0.25, 1], [0, 1]],
+         "groesse": [0.16, 0.7, 0.3], "drehung": [0, 0, 0], "rgb": [40, 40, 40]}
+    ]}}]
+    def respond(**request):
+        assert len(request["input"]) == 1
+        return SimpleNamespace(
+            output=[SimpleNamespace(type="function_call", name=call["name"],
+                                    arguments=json.dumps(call["arguments"])) for call in calls],
+            output_text="", usage=SimpleNamespace(input_tokens=100, output_tokens=50),
+        )
+
+    monkeypatch.setenv("LLM_MODE", "openai")
+    monkeypatch.setattr(planner, "_responses", lambda: SimpleNamespace(create=respond))
+    res = edit(sid, "Mach daraus einen Achtsitzer")
+    assert res["nutzung"]["api_aufrufe"] == 1
+    assert res["aufrufe"][0]["ergebnis"] == [f"sitz_{i}" for i in range(1, 9)]
+    before = fps(sid, 2)
+    assert all(before[n] == value for n, value in original.items())
+    calls[:] = [{"name": "loesche", "arguments": {"teil": "sitz_[1-6]"}}]
+    res = edit(sid, "Nur noch zwei Sitze")
+    assert {p["name"] for p in res["teile"] if p["name"].startswith("sitz_")} == {"sitz_7", "sitz_8"}
+
+
+def test_muster_und_spaeterer_bildsticker_bleiben_im_glb(monkeypatch):
+    sid = upload()["session"]
+    args = {"teil": "karosserie", "rgb": [5, 70, 180], "metall": 0.4, "rauheit": 0.2,
+            "muster": {"art": "grafik", "anzahl": 3, "rgb": [255, 255, 255],
+                       "motiv": [[[0, 0], [1, 0.5], [0, 1]]]}, "sticker": None}
+    monkeypatch.setattr(planner, "plan", lambda *a: {
+        "calls": [{"name": "lackiere", "arguments": args}], "text": "", "usage": {"api_aufrufe": 1}
+    })
+    res = edit(sid, "Blauer Lack mit weißen Pfeilen")
+    assert res["aufrufe"][0]["ergebnis"] == ["karosserie"]
+    assert len(res["teile"]) == 13
+
+    def material(version):
+        sc = model_io.load_model(str(Path(os.environ["DATA_DIR"]) / sid / f"v{version}.glb"))
+        return sc.geometry["karosserie"].visual.material
+
+    before = np.array(material(2).baseColorTexture)
+    args.update(rgb=None, metall=None, rauheit=None, muster=None,
+                sticker={"seite": "links", "position": [0.5, 0.5], "breite": 0.3,
+                         "text": None, "rgb": [255, 255, 255]})
+    image = io.BytesIO()
+    Image.new("RGBA", (64, 16), (200, 30, 90, 180)).save(image, "PNG")
+    r = c.post(f"/api/{sid}/edit", data={"auftrag": "Bild als Sticker links"},
+               files={"bild": ("sticker.png", image.getvalue(), "image/png")})
+    assert r.status_code == 200 and r.json()["neue_version"], r.text
+    after = material(3)
+    assert np.isclose(after.roughnessFactor, 0.2) and np.isclose(after.metallicFactor, 0.4)
+    pixels = np.array(after.baseColorTexture)
+    changed = np.argwhere(np.any(before != pixels, axis=2))
+    assert 0 < len(changed) < 256 ** 2
+    assert (changed[:, 0] >= 256).all() and ((256 <= changed[:, 1]) & (changed[:, 1] < 512)).all()
+    assert fps(sid, 3)["karosserie"][1] == (5, 70, 180)
+    assert fps(sid, 3)["kabine"] == fps(sid, 1)["kabine"]
+
+
+
+def test_dashboard_standardauto_und_standardmodell(monkeypatch):
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    assert c.get("/api/config").json()["modell"] == "gpt-6.2-sol"
+    r = c.post("/api/demo")
+    assert r.status_code == 200
+    state = r.json()
+    assert state["version"] == 1 and len(state["teile"]) == 13
+    assert c.get(state["glb_url"]).content.startswith(b"glTF")
+    assert edit(state["session"], "Karosserie blau")["neue_version"]
+    assert c.post("/api/demo").json()["session"] != state["session"]
+
+
+def test_kantensegmentierung_zerlegt_einen_koerper(tmp_path):
+    import trimesh
+    from app import model_io
+    from app.segmentation import segment_faces
+
+    box = trimesh.creation.box([2, 1, 1])
+    labels, count = segment_faces(box.vertices, box.faces)
+    assert count == 6 and len(labels) == len(box.faces)
+    path = tmp_path / "box.glb"
+    box.export(path)
+    scene = model_io.load_model(str(path), split=True)
+    assert len(scene.geometry) == 6
+
+
+def test_schaerfen_macht_aus_weichem_quader_flache_ebenen():
+    import trimesh
+    from scipy import ndimage as ndi
+    import pytest
+    marching_cubes = pytest.importorskip("skimage.measure").marching_cubes
+    from app.sharpen import sharpen
+
+    vol = np.zeros((40, 40, 40), np.float32); vol[8:32, 10:30, 12:28] = 1
+    v, f, _, _ = marching_cubes(ndi.gaussian_filter(vol, 2.5), 0.5)  # abgerundeter Quader
+    v = (v - 20) / 20
+    out, faces, lab = sharpen(v, f)
+    assert 6 <= lab.max() + 1 <= 14
+    edges = trimesh.Trimesh(out, faces, process=False)
+    # nach dem Schärfen liegen die Dreiecke deutlich ebener: viele Normalen liegen nahe an den 6 Achsen
+    n = edges.face_normals
+    assert (np.abs(n).max(1) > 0.97).mean() > 0.75

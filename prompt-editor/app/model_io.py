@@ -13,6 +13,8 @@ from pathlib import Path
 import numpy as np
 import trimesh
 
+ATLAS_PREFIX = "SketchToCAD_Atlas_v1_"
+
 
 def _safe(name: str) -> str:
     s = re.sub(r"[^A-Za-z0-9_]", "_", name).strip("_") or "teil"
@@ -23,6 +25,9 @@ def color_of(mesh: trimesh.Trimesh):
     v = mesh.visual
     try:
         mat = getattr(v, "material", None)
+        name = getattr(mat, "name", None) or ""
+        if name.startswith(ATLAS_PREFIX) and len(name) == len(ATLAS_PREFIX) + 6:
+            return list(bytes.fromhex(name.removeprefix(ATLAS_PREFIX)))
         if mat is not None and getattr(mat, "baseColorFactor", None) is not None:
             return [int(c) for c in np.asarray(mat.baseColorFactor)[:3]]
         if hasattr(v, "face_colors") and len(v.face_colors):
@@ -33,7 +38,9 @@ def color_of(mesh: trimesh.Trimesh):
 
 
 def set_color(mesh: trimesh.Trimesh, rgb):
-    rgba = [int(rgb[0]), int(rgb[1]), int(rgb[2]), 255]
+    if len(rgb) != 3 or any(not isinstance(c, (int, np.integer)) or not 0 <= c <= 255 for c in rgb):
+        raise ValueError("RGB braucht drei Ganzzahlen zwischen 0 und 255.")
+    rgba = [*rgb, 255]
     mat = trimesh.visual.material.PBRMaterial(baseColorFactor=rgba, metallicFactor=0.1, roughnessFactor=0.6)
     mesh.visual = trimesh.visual.TextureVisuals(material=mat)
 
@@ -105,7 +112,16 @@ def load_model(path: str, split: bool = False) -> trimesh.Scene:
     scene = _flatten(trimesh.load(path, force="scene"))
     if split and len(scene.geometry) == 1:  # ein Klumpen: nach Verbundenheit zerlegen (kostenlos)
         mesh = next(iter(scene.geometry.values()))
+        # Die UV-Nähte eines bereits exportierten Editor-Teils sind keine Segmentgrenzen.
+        material = getattr(mesh.visual, "material", None)
+        if (getattr(material, "name", None) or "").startswith(ATLAS_PREFIX):
+            return scene
         pieces = mesh.split(only_watertight=False)
+        if len(pieces) <= 1:  # ein zusammenhängender Körper: an Kanten (Knicken) in Flächen zerlegen
+            from .segmentation import segment_faces
+            labels, count = segment_faces(mesh.vertices, mesh.faces)
+            if count > 1:
+                pieces = [mesh.submesh([np.nonzero(labels == k)[0]], append=True) for k in range(min(count, 200))]
         if 1 < len(pieces) <= 200:
             scene = trimesh.Scene()
             for i, p in enumerate(pieces):

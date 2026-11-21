@@ -9,50 +9,72 @@ import trimesh
 
 from . import model_io
 
-TEIL = {"type": "string", "description": "Teilname aus der Teileliste; Platzhalter * erlaubt (z. B. 'felge_*')."}
+def object_schema(**properties):
+    return {"type": "object", "properties": properties, "required": list(properties),
+            "additionalProperties": False}
+
+
+def function(name, description, **properties):
+    return {"type": "function", "name": name, "description": description,
+            "strict": True, "parameters": object_schema(**properties)}
+
+
+def array(items, minimum, maximum):
+    return {"type": "array", "items": items, "minItems": minimum, "maxItems": maximum}
+
+
+def nullable(schema):
+    return {"anyOf": [schema, {"type": "null"}]}
+
+
+def choice(*values):
+    return {"type": "string", "enum": list(values)}
+
+
+STR = {"type": "string"}
 NUM = {"type": "number"}
+TEIL = {**STR, "description": "Teilname, * als Platzhalter."}
+UV = array(NUM, 2, 2)
+XYZ = array(NUM, 3, 3)
+RGB = array({"type": "integer", "minimum": 0, "maximum": 255}, 3, 3)
+VORLAGE = object_schema(
+    name=STR, form=choice("box", "keil", "kugel", "zylinder", "kegel", "profil", "kopie"),
+    quelle=nullable(STR), profil=nullable(array(UV, 3, 32)), positionen=array(XYZ, 1, 32), groesse=XYZ, drehung=XYZ, rgb=nullable(RGB),
+)
 
 TOOL_SCHEMAS = [
-    {"type": "function", "name": "faerbe", "description": "Ändert die Farbe ganzer Teile.",
-     "parameters": {"type": "object", "properties": {
-         "teil": TEIL, "rgb": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}, "minItems": 3, "maxItems": 3}},
-         "required": ["teil", "rgb"], "additionalProperties": False}},
-    {"type": "function", "name": "skaliere",
-     "description": "Vergrößert/verkleinert Teile. Getrennte Faktoren je Achse möglich (x=Länge, y=Höhe, z=Breite). "
-                    "anker='boden' hält die Unterkante am Boden (z. B. Räder), anker='basis' hält die Unterseite fest (z. B. Horn auf Kopf).",
-     "parameters": {"type": "object", "properties": {
-         "teil": TEIL, "x": NUM, "y": NUM, "z": NUM,
-         "anker": {"type": "string", "enum": ["mitte", "boden", "basis"]}},
-         "required": ["teil", "x", "y", "z", "anker"], "additionalProperties": False}},
-    {"type": "function", "name": "verschiebe", "description": "Verschiebt Teile (Meter; y = oben).",
-     "parameters": {"type": "object", "properties": {"teil": TEIL, "x": NUM, "y": NUM, "z": NUM},
-                    "required": ["teil", "x", "y", "z"], "additionalProperties": False}},
-    {"type": "function", "name": "drehe", "description": "Dreht Teile um ihren Mittelpunkt.",
-     "parameters": {"type": "object", "properties": {"teil": TEIL, "achse": {"type": "string", "enum": ["x", "y", "z"]}, "grad": NUM},
-                    "required": ["teil", "achse", "grad"], "additionalProperties": False}},
-    {"type": "function", "name": "loesche", "description": "Entfernt Teile.",
-     "parameters": {"type": "object", "properties": {"teil": TEIL}, "required": ["teil"], "additionalProperties": False}},
-    {"type": "function", "name": "ersetze",
-     "description": "Ersetzt Teile durch ein NEU erzeugtes Teil (nur wenn sich die FORM ändern soll). "
-                    "art='technisch' für geometrische Teile (Felgen, Lampen, Möbel): wird als CAD-Code erzeugt. "
-                    "art='organisch' für Tiere, Pflanzen, Figurenteile. Beschreibung ohne Markennamen.",
-     "parameters": {"type": "object", "properties": {
-         "teil": TEIL, "beschreibung": {"type": "string"},
-         "art": {"type": "string", "enum": ["technisch", "organisch"]}},
-         "required": ["teil", "beschreibung", "art"], "additionalProperties": False}},
-    {"type": "function", "name": "frage_nach",
-     "description": "Rückfrage an den Nutzer, wenn unklar ist, welches Teil gemeint ist, das Teil nicht existiert "
-                    "oder der Auftrag eine komplette Neuerstellung wäre.",
-     "parameters": {"type": "object", "properties": {"frage": {"type": "string"}},
-                    "required": ["frage"], "additionalProperties": False}},
+    function("faerbe", "Einfarbig lackieren.", teil=TEIL, rgb=RGB),
+    function("skaliere", "Faktoren pro Achse. boden/basis hält Unterkante.",
+             teil=TEIL, x=NUM, y=NUM, z=NUM, anker=choice("mitte", "boden", "basis")),
+    function("verschiebe", "Versatz in Modelleinheiten.", teil=TEIL, x=NUM, y=NUM, z=NUM),
+    function("drehe", "Rotation um Teilmitte.", teil=TEIL, achse=choice("x", "y", "z"), grad=NUM),
+    function("loesche", "Teile entfernen.", teil=TEIL),
+    function("ersetze", "Teilform austauschen. technisch erzeugt CadQuery. organisch nicht verfügbar.",
+             teil=TEIL, beschreibung=STR, art=choice("technisch", "organisch")),
+    function("baue", "Vorlagen hinzufügen. bezug=null: ganzes Modell. Position ab Bezugsmitte und Größe "
+             "als Anteile der Bezugsmaße pro Achse (0.5 an der Kante). Euler-XYZ in Grad nach Skalierung. "
+             "Zylinder/Kegel: +Y. profil: XY-Polygon mit Dicke in Z. quelle nur für kopie. "
+             "Eindeutige Namen aus ASCII-Buchstaben, Zahlen und _. Mehrere Positionen hängen _1, _2 usw. an.",
+             bezug=nullable(STR), teile=array(VORLAGE, 1, 32)),
+    function("lackiere", "Lack, Muster, Sticker. Motiv für art=grafik: gefüllte Polygone in Motivkoordinaten 0–1. "
+             "rgb/metall/rauheit=null "
+             "übernimmt vorhandene Grundfarbe/Oberflächenwerte. Nur Sticker: bestehende Editor-Textur behalten. "
+             "Stickerposition UV [0,1], v nach oben, breite relativ zur Seite. text=null nutzt Bildanhang.",
+             teil=TEIL, rgb=nullable(RGB), metall=nullable(NUM), rauheit=nullable(NUM),
+             muster=nullable(object_schema(art=choice("streifen", "karo", "punkte", "grafik"),
+                                           anzahl={"type": "integer"}, rgb=RGB,
+                                           motiv=nullable(array(array(UV, 3, 24), 1, 8)))),
+             sticker=nullable(object_schema(seite=choice("vorne", "hinten", "oben", "unten", "links", "rechts"),
+                                            position=UV, breite=NUM, text=nullable(STR), rgb=RGB))),
+    function("frage_nach", "Kurze konkrete Rückfrage bei fehlender Information.", frage=STR),
 ]
 
-SYSTEM_PROMPT = """Du bearbeitest ein BESTEHENDES 3D-Modell für Film-Requisiten. Du darfst es NIEMALS neu erstellen.
-Nutze ausschließlich die Werkzeuge. Ändere nur die Teile, die der Nutzer meint; nur GANZE Teile sind änderbar.
-Koordinaten in Metern, y = oben. „links/rechts“ aus Sicht des Objekts selbst (Fahrersicht/Blickrichtung der Figur), +x = vorne.
-Farben als RGB 0–255. Gleiche Teile auf beiden Seiten mit EINEM Aufruf und Platzhalter ansprechen (z. B. 'felge_v*').
-Bei vagen Wünschen (z. B. „sportlicher“) oder fehlenden Teilen: frage_nach mit einem konkreten Vorschlag.
-Wenn ein Teil ausgewählt ist, bezieht sich der Auftrag im Zweifel auf dieses Teil."""
+SYSTEM_PROMPT = """Bearbeite das vorhandene 3D-Modell per Werkzeug. Y oben, +X vorne, +Z links aus Objektsicht.
+Teiletabelle: Name, Mitte xyz, Ausmaß xyz, RGB hex. Verwende Teilnamen oder gemeinsame *-Muster.
+Kombiniere vorhandene Teile, Transformationen und neue Vorlagen (z.B. Keil, Spoiler oder Sitzreihen)
+für Umbauten. Kopiere vorhandene passende Teile bevorzugt. Lösche nur eindeutig überzählige Teile.
+Erhalte übrige Geometrie. Nutze Auswahl als Standard. Wenn Ziele anhand der Namen unklar sind, frage nach.
+Gib Werkzeugaufrufe in Ausführungsreihenfolge aus, ohne zusätzliche Erklärung."""
 
 
 class ToolError(Exception):
@@ -83,7 +105,7 @@ def faerbe(scene, teil, rgb):
 def skaliere(scene, teil, x=1.0, y=1.0, z=1.0, anker="mitte"):
     names = match(scene, teil)
     s = [float(x), float(y), float(z)]
-    if min(s) <= 0 or max(s) > 20:
+    if not np.all(np.isfinite(s)) or min(s) <= 0 or max(s) > 20:
         raise ToolError("Skalierungsfaktoren müssen zwischen 0 und 20 liegen.")
     for n in names:
         m = scene.geometry[n]
@@ -97,12 +119,17 @@ def skaliere(scene, teil, x=1.0, y=1.0, z=1.0, anker="mitte"):
 
 def verschiebe(scene, teil, x=0.0, y=0.0, z=0.0):
     names = match(scene, teil)
+    offset = np.array([x, y, z], dtype=float)
+    if not np.isfinite(offset).all():
+        raise ToolError("Versatz muss endlich sein.")
     for n in names:
-        scene.geometry[n].apply_translation([float(x), float(y), float(z)])
+        scene.geometry[n].apply_translation(offset)
     return names
 
 
 def drehe(scene, teil, achse, grad):
+    if not np.isfinite(float(grad)):
+        raise ToolError("Drehwinkel muss endlich sein.")
     axis = {"x": [1, 0, 0], "y": [0, 1, 0], "z": [0, 0, 1]}[achse]
     names = match(scene, teil)
     for n in names:
@@ -115,6 +142,8 @@ def drehe(scene, teil, achse, grad):
 
 def loesche(scene, teil):
     names = match(scene, teil)
+    if len(names) == len(scene.geometry):
+        raise ToolError("Mindestens ein Teil muss im Modell bleiben.")
     scene.delete_geometry(names)
     return names
 
