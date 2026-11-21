@@ -207,6 +207,107 @@ export function museum() {
   return g;
 }
 
+/** Holzschild mit Schrift (bleibt unverschmolzen, damit die Textur erhalten bleibt) */
+function sign(g: THREE.Group, text: string, w: number, h: number, x: number, y: number, z: number, ry = 0, bg = '#7a4b33', fg = '#f6e6c4', font = '800 120px Georgia, serif') {
+  const m = add(g, B(w, h, 0.06), textPlate(text, w, h, bg, fg, font), x, y, z, 0, ry);
+  m.userData.keep = true; m.userData.noInk = true;
+  return m;
+}
+/** Wagenrad (an die Wand gelehnt) */
+function wheel(g: THREE.Group, x: number, y: number, z: number, ry: number, r = 0.42) {
+  const w = new THREE.Group();
+  const wood = M(PAL.wood);
+  add(w, new THREE.TorusGeometry(r, 0.05, 5, 14), wood, 0, 0, 0);
+  for (let i = 0; i < 6; i++) add(w, B(0.04, r * 2, 0.04), wood, 0, 0, 0, 0, 0, (i * Math.PI) / 6);
+  add(w, C(0.08, 0.08, 0.1, 8), M(PAL.woodDark), 0, 0, 0, Math.PI / 2);
+  w.position.set(x, y, z); w.rotation.set(-0.12, ry, 0);
+  g.add(w);
+}
+
+/** Variante A – Heimatmuseum: Fachwerkhaus mit Glockentürmchen (Dachreiter), Schaufenster mit Exponat, Ausleger-Schild */
+export function museumHeimat() {
+  const g = cottage({ wall: '#f4e4c6', roof: '#8e3f33', w: 3.4, d: 3.0, h: 2.2 });
+  const top = 0.35 + 2.2, rh = 3.4 * 0.42;
+  // Fachwerk-Streben auf der Front
+  const wood = M(PAL.woodDark);
+  add(g, B(3.4, 0.12, 0.06), wood, 0, 0.35 + 1.62, 1.53);                       // Riegel über den Fenstern
+  for (const x of [-0.62, 0.62]) add(g, B(0.12, 2.2, 0.06), wood, x, 0.35 + 1.1, 1.53);   // Ständer neben der Tür
+  for (const sx of [-1, 1]) add(g, B(0.1, 0.78, 0.06), wood, 0, 0.35 + 1.92, 1.53, 0, 0, sx * 0.75); // Andreaskreuz über der Tür
+  // Dachreiter mit Glocke
+  add(g, B(0.55, 0.55, 0.55), M('#f4e4c6'), 0, top + rh + 0.2, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(g, B(0.08, 0.55, 0.08), wood, sx * 0.26, top + rh + 0.2, sz * 0.26);
+  add(g, B(0.2, 0.28, 0.6), GLOW(), 0, top + rh + 0.24, 0).castShadow = false;
+  add(g, new THREE.ConeGeometry(0.5, 0.7, 4).rotateY(Math.PI / 4), M('#8e3f33'), 0, top + rh + 0.82, 0);
+  add(g, new THREE.SphereGeometry(0.07, 6, 4), M('#e0b04a'), 0, top + rh + 1.22, 0);
+  // Ausleger mit hängendem Schild
+  add(g, B(0.9, 0.07, 0.07), wood, 1.95, 0.35 + 1.75, 1.6);
+  sign(g, 'MUSEUM', 0.85, 0.42, 2.1, 0.35 + 1.42, 1.6, 0, '#7a4b33', '#f6e6c4');
+  // Schaufenster mit Exponat (Sockel + goldene Figur)
+  add(g, B(0.92, 0.95, 0.05), M('#ffd796', '#ffb060', 0.55), -1.1, 0.35 + 1.0, 1.62).castShadow = false;   // Schaufenster (überdeckt das Standardfenster)
+  add(g, B(1.0, 0.08, 0.12), wood, -1.1, 0.35 + 0.5, 1.66); add(g, B(1.0, 0.08, 0.12), wood, -1.1, 0.35 + 1.5, 1.66);
+  add(g, B(0.24, 0.3, 0.16), M('#efe3c9'), -1.1, 0.35 + 0.7, 1.7);
+  add(g, new THREE.IcosahedronGeometry(0.13, 0), M('#e0b04a', '#e0b04a', 0.45), -1.1, 0.35 + 0.98, 1.72);
+  wheel(g, 1.25, 0.47, 1.68, 0.1);
+  return g;
+}
+
+/** Variante B – Landmuseum in der alten Scheune: Holzbretter, offenes Tor mit beleuchtetem Exponat, Heuluke, Heuballen */
+export function museumScheune() {
+  const g = new THREE.Group();
+  const w = 3.6, d = 3.0, h = 2.0, top = 0.3 + h, rh = 1.6;
+  const plank = M('#a8663f'), plankDark = M('#86502f'), wood = M(PAL.woodDark);
+  add(g, B(w + 0.3, 0.3, d + 0.3), M(PAL.stone), 0, 0.15, 0);
+  add(g, B(w, h, d), plank, 0, 0.3 + h / 2, 0);
+  for (let i = 0; i < 11; i++) add(g, B(0.04, h, 0.04), plankDark, -w / 2 + 0.17 + i * 0.33, 0.3 + h / 2, d / 2 + 0.01).userData.noInk = true;
+  gableRoof(g, w, d, top, rh, plank, M('#6d5a4c'), 0.3);
+  // offenes Tor: dunkles Inneres, warmes Licht, Staffelei mit Skizze
+  add(g, B(1.5, 1.6, 0.05), M('#ffcf8a', '#ff9f4a', 0.55), 0, 0.3 + 0.8, d / 2 + 0.02).castShadow = false;   // warm beleuchtetes Inneres
+  for (const sx of [-1, 1]) add(g, B(0.75, 1.6, 0.08), plankDark, sx * 1.15, 0.3 + 0.8, d / 2 + 0.25, 0, sx * 0.9);
+  add(g, B(0.06, 0.9, 0.06), wood, -0.14, 0.3 + 0.45, d / 2 + 0.2, 0, 0, 0.12);
+  add(g, B(0.06, 0.9, 0.06), wood, 0.14, 0.3 + 0.45, d / 2 + 0.2, 0, 0, -0.12);
+  add(g, B(0.56, 0.42, 0.03), M('#fbf4e2'), 0, 0.3 + 0.88, d / 2 + 0.24);                      // Staffelei mit Skizze
+  for (let i = 0; i < 3; i++) add(g, B(0.3 - i * 0.06, 0.02, 0.01), M('#3a4a8a'), 0, 0.3 + 0.8 + i * 0.08, d / 2 + 0.26).userData.noInk = true;
+  // Heuluke + Schild
+  add(g, B(0.55, 0.55, 0.06), M('#2a1a12'), 0, top + 0.45, d / 2 + 0.02);
+  sign(g, 'LANDMUSEUM', 1.7, 0.3, 0, 0.3 + 1.82, d / 2 + 0.08, 0, '#f1e1bf', '#5a3a2a', '800 110px Georgia, serif');
+  // Heuballen + Wagenrad
+  for (const [x, z, s] of [[1.75, 1.85, 1], [2.05, 1.35, 0.85]] as const) add(g, C(0.32 * s, 0.32 * s, 0.5 * s, 10), M('#e2bd5c'), x, 0.32 * s, z, Math.PI / 2, 0, 0.3);
+  wheel(g, -1.6, 0.42, 1.62, -0.2);
+  return g;
+}
+
+/** Variante C – Museum in der alten Dorfschule: Ziegelbau, weiße Sprossenfenster, Uhrentürmchen, Fahne */
+export function museumSchule() {
+  const g = new THREE.Group();
+  const w = 3.6, d = 2.9, h = 2.2, top = 0.3 + h, rh = 1.25;
+  const brick = M('#c47a5c'), white = M('#f4ecdc'), roof = M('#59606f');
+  add(g, B(w + 0.3, 0.3, d + 0.3), M(PAL.stone), 0, 0.15, 0);
+  add(g, B(w, h, d), brick, 0, 0.3 + h / 2, 0);
+  for (let i = 1; i < 6; i++) add(g, B(w + 0.01, 0.03, d + 0.01), M('#b06a4e'), 0, 0.3 + i * (h / 6), 0).userData.noInk = true;
+  add(g, B(w + 0.1, 0.14, d + 0.1), white, 0, top - 0.05, 0);
+  gableRoof(g, w, d, top, rh, brick, roof, 0.3);
+  for (const x of [-1.15, 1.15]) {
+    add(g, B(0.62, 0.95, 0.06), GLOW(), x, 0.3 + 1.2, d / 2 + 0.01);
+    add(g, B(0.72, 0.07, 0.1), white, x, 0.3 + 1.2, d / 2 + 0.03);
+    add(g, B(0.07, 1.0, 0.1), white, x, 0.3 + 1.2, d / 2 + 0.03);
+    add(g, B(0.76, 0.1, 0.16), white, x, 0.3 + 0.7, d / 2 + 0.06);
+  }
+  add(g, B(0.8, 1.45, 0.08), M('#3f6f63'), 0, 0.3 + 0.73, d / 2 + 0.03);
+  add(g, B(0.95, 0.12, 0.14), white, 0, 0.3 + 1.5, d / 2 + 0.04);
+  sign(g, 'MUSEUM', 1.1, 0.26, 0, 0.3 + 1.75, d / 2 + 0.06, 0, '#f4ecdc', '#4a2e20', '800 130px Georgia, serif');
+  // Uhrentürmchen auf dem First
+  add(g, B(0.6, 0.7, 0.6), white, 0, top + rh + 0.2, 0.4);
+  const clock = add(g, C(0.2, 0.2, 0.04, 14), M('#fbf6e8'), 0, top + rh + 0.25, 0.71, Math.PI / 2);
+  clock.userData.noInk = true;
+  add(g, B(0.03, 0.16, 0.02), M('#2a2a2a'), 0, top + rh + 0.3, 0.74);
+  add(g, B(0.12, 0.03, 0.02), M('#2a2a2a'), 0.05, top + rh + 0.25, 0.74);
+  add(g, new THREE.ConeGeometry(0.5, 0.6, 4).rotateY(Math.PI / 4), roof, 0, top + rh + 0.85, 0.4);
+  // Fahnenmast mit Wimpel
+  add(g, C(0.03, 0.03, 2.4, 6), M('#e9e2d2'), 2.1, 1.2, 1.3);
+  add(g, B(0.5, 0.3, 0.02), M('#c4493a'), 2.36, 2.2, 1.3).userData.noInk = true;
+  return g;
+}
+
 export function windmill() {
   const g = new THREE.Group();
   add(g, C(1.75, 1.85, 0.5, 8), M(PAL.stone), 0, 0.25, 0);

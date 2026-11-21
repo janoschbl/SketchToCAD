@@ -89,8 +89,16 @@ const houses: { x: number; z: number; ry: number; wall: string; roof: string; w?
   { x: -5, z: -16, ry: 0.15, wall: '#efd6b0', roof: '#b85a3c', w: 3.2, label: 'Bäckerei', door: true },
   { x: 7.5, z: -18, ry: -0.25, wall: '#f6e2c4', roof: '#4f7f8a', w: 2.9, d: 2.6, h: 1.9, label: 'Fischerhaus', door: true },
 ];
+// Museums-Varianten zum Vergleichen: ?museum=heimat | scheune | schule | gross (Standard: gross = Landesmuseum-Miniatur)
+const MUSEUM_VARIANT = new URLSearchParams(location.search).get('museum') ?? 'gross';
+function museumVariant() {
+  if (MUSEUM_VARIANT === 'heimat') return P.museumHeimat();
+  if (MUSEUM_VARIANT === 'scheune') return P.museumScheune();
+  if (MUSEUM_VARIANT === 'schule') return P.museumSchule();
+  const g = P.museum(); g.scale.setScalar(0.72); return g;
+}
 houses.forEach((h, i) => {
-  defs.push({ id: 'house' + i, label: h.label, make: () => (h.label === 'Museum' ? P.museum() : P.cottage(h)), x: h.x, z: h.z, ry: h.ry, col: 2.9 });
+  defs.push({ id: 'house' + i, label: h.label, make: () => (h.label === 'Museum' ? museumVariant() : P.cottage(h)), x: h.x, z: h.z, ry: h.ry, col: 2.9 });
   if (!h.door) return;
   // Hausweg: von der Tür zum nächsten Punkt auf einer Hauptstraße
   const [fx, fz] = front(h.x, h.z, h.ry, 2.8);
@@ -451,7 +459,7 @@ addEventListener('blur', () => keys.clear());
 // Kollision: einfache Kreise je Objekt
 const colliders = defs.map((d, i) => ({
   o: objs[i], x: d.x, z: d.z,
-  r: d.id.startsWith('house') ? (d.label === 'Museum' ? 2.9 : 2.25) : d.id === 'well' ? 1.4 : d.id.startsWith('tree') ? 0.55 : d.col > 0 ? Math.max(0.3, d.col * 0.6) : 0,
+  r: d.id.startsWith('house') ? (d.label === 'Museum' ? 2.4 : 2.25) : d.id === 'well' ? 1.4 : d.id.startsWith('tree') ? 0.55 : d.col > 0 ? Math.max(0.3, d.col * 0.6) : 0,
 })).filter((c) => c.r > 0);
 // Wasser ist jetzt begehbar: am Rand watet man, im tiefen Wasser geht man unter (siehe drown.ts)
 function walkable(x: number, z: number) {
