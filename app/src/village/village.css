@@ -509,40 +509,49 @@ body.drowning .vquest, body.drowning .vkeys, body.drowning .vjump, body.drowning
 .vbar-logo small { font: 600 10.5px/1 var(--display) !important; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 247, 234, 0.8); margin-top: 4px; text-shadow: none; }
 @media (max-width: 560px) { .vbar-logo small { display: none; } }
 
-/* ================================================================ Museum (Projektvideo) */
-.vmuseum { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 70px 4vw 40px;
-  opacity: 0; pointer-events: none; transition: opacity 0.45s; }
-.vmuseum.on { opacity: 1; pointer-events: auto; }
-/* Ausstellungsraum: dunkle Wand, warmer Spot, Holzboden-Kante */
-.vmuseum-room { position: absolute; inset: 0;
-  background:
-    radial-gradient(ellipse 55% 50% at 50% 38%, rgba(255, 214, 160, 0.22), rgba(255, 214, 160, 0) 70%),
-    linear-gradient(to bottom, rgba(0,0,0,0) 78%, rgba(60, 34, 20, 0.95) 78.4%, #2a170e 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .12 0 0 0 0 .1 0 0 0 .18 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
-    linear-gradient(#4a2a2e, #321a1f); }
-.vmuseum-back { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 18px; z-index: 2; color: #fff7ea !important; border-color: rgba(255, 247, 234, 0.55); background: rgba(20, 10, 6, 0.35); }
-.vmuseum-stage { position: relative; z-index: 1; width: min(1100px, 100%); display: flex; flex-direction: column; align-items: center; gap: 22px;
-  transform: translateY(14px) scale(0.98); transition: transform 0.6s cubic-bezier(.2,.9,.3,1.1); }
-.vmuseum.on .vmuseum-stage { transform: none; }
-/* Goldrahmen: mehrere Kanten + Passepartout */
-.vmuseum-frame { position: relative; width: min(100%, calc((100vh - 260px) * 16 / 9)); aspect-ratio: 16 / 9;
-  padding: clamp(10px, 1.4vw, 18px); border-radius: 4px;
-  background: linear-gradient(135deg, #f6d98a, #b8862f 28%, #f3d27e 50%, #9c6c22 74%, #e7c46e);
-  box-shadow: inset 0 0 0 3px rgba(90, 60, 20, 0.55), inset 0 0 0 7px rgba(255, 236, 180, 0.5),
-    0 30px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0,0,0,0.4); }
-.vmuseum-video, .vmuseum-empty { width: 100%; height: 100%; display: block; background: #0d0a09; border: clamp(6px, 0.9vw, 12px) solid #f2ead8; box-sizing: border-box; object-fit: contain; }
-.vmuseum-empty { display: none; place-content: center; text-align: center; gap: 10px; color: #f6eedd; }
-.vmuseum.empty .vmuseum-video { display: none; }
-.vmuseum.empty .vmuseum-empty { display: grid; }
-.vmuseum-empty .hw-big { font: 700 clamp(26px, 3.2vw, 44px)/1.1 var(--hand); }
-.vmuseum-empty small { font: 13px/1.4 var(--display); opacity: 0.6; }
-.vmuseum-empty code { font-size: 12px; }
-/* Museumsschild aus Messing, beschriftet */
-.vmuseum-plaque { display: grid; gap: 3px; text-align: center; padding: 12px 22px 14px; border-radius: 3px; color: #3a2614;
-  background: linear-gradient(160deg, #f3dc9c, #c99d47 55%, #e6c57a); box-shadow: inset 0 0 0 1px rgba(90, 60, 20, 0.5), 0 8px 18px rgba(0,0,0,0.45);
-  font: 13px/1.35 var(--display); max-width: 460px; }
-.vmuseum-plaque b { font: 700 24px/1.1 var(--hand); }
-.vmuseum-no { font-weight: 700; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.75; }
-.vmuseum-tools { font-weight: 600; font-size: 12px; opacity: 0.8; margin-top: 2px; }
-@media (max-width: 700px) { .vmuseum { padding: 70px 12px 24px; } .vmuseum-frame { width: 100%; } }
 .vmark.museum b { font-family: var(--display); font-size: 16px; padding-left: 3px; }
+
+
+/* ================================================================ Museum als Skizzenbuch-Seite (passt zum Notizblock) */
+.vcard.pad.museum { --w: min(940px, calc(100vw - 32px)); }
+.pad-paper.plain {
+  padding: 34px 40px 24px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .4 0 0 0 0 .34 0 0 0 0 .26 0 0 0 .14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(140% 110% at 30% 20%, #fbf6e8 0%, #f4ecd7 55%, #e6d8b8 100%);
+}
+/* Text bekommt die Kugelschreiber-Tinte, das eingeklebte Video nicht */
+.vcard.museum .pad-ink { filter: none; }
+.vcard.museum .pad-ink .hw { filter: url(#ink); }
+.vcard.museum .pad-h { margin-bottom: 14px; }
+/* Eingeklebtes „Foto“ mit Klebestreifen, liegt über Knittern und Licht */
+.pin { position: relative; z-index: 6; margin: 6px auto 14px; width: 100%; aspect-ratio: 16 / 9; padding: 10px; background: #fbfaf5;
+  transform: rotate(-0.7deg); box-shadow: 0 1px 0 rgba(0,0,0,0.08), 0 10px 18px rgba(60, 40, 15, 0.28), 0 2px 4px rgba(60, 40, 15, 0.2); }
+.pin-video { display: block; width: 100%; height: 100%; object-fit: cover; background: #1b1512; }
+.pin-empty { display: none; width: 100%; height: 100%; place-content: center; text-align: center; gap: 8px; color: #1e2d78;
+  border: 2px dashed rgba(30, 45, 120, 0.45); border-radius: 6px; background: rgba(255, 255, 255, 0.4); }
+.pin-empty .hw { font: 700 clamp(26px, 3vw, 40px)/1.1 var(--hand); }
+.pin-empty small { font: 13px/1.4 var(--display); color: #8a7f70; }
+.pin.empty .pin-video { display: none; }
+.pin.empty .pin-empty { display: grid; }
+.tape { position: absolute; z-index: 2; width: 110px; height: 30px; background: rgba(238, 224, 186, 0.78);
+  box-shadow: 0 1px 2px rgba(60, 40, 15, 0.18); mix-blend-mode: multiply;
+  clip-path: polygon(0 8%, 6% 0, 12% 10%, 20% 2%, 30% 9%, 42% 0, 55% 8%, 68% 1%, 80% 9%, 92% 2%, 100% 10%, 100% 90%, 93% 100%, 84% 92%, 72% 100%, 60% 93%, 47% 100%, 35% 92%, 22% 100%, 10% 93%, 0 100%); }
+.tape.tl { left: -28px; top: -10px; transform: rotate(-32deg); }
+.tape.tr { right: -28px; top: -10px; transform: rotate(28deg); }
+.pin-caption { margin: 0 0 4px !important; text-align: center; }
+.pin-flow { margin: 0 0 6px !important; text-align: center; color: #b3261e; font-weight: 700; transform: rotate(-1deg); }
+.vcard.museum .pad-links { justify-content: center; margin-top: 4px; }
+@media (max-width: 600px) { .pad-paper.plain { padding: 28px 16px 18px; } .tape { width: 70px; height: 22px; } }
+/* Museum-Seite: ohne 3D-Neigung (Video unverzerrt, nichts wird unten abgeschnitten) */
+.vcard.pad.museum { transform: rotate(-0.8deg) translateY(14px) scale(calc(var(--fit, 1) * 0.97)); }
+.vveil.on .vcard.pad.museum { transform: rotate(-0.8deg) scale(var(--fit, 1)); }
+/* Klebestreifen deutlicher: halbtransparentes Krepp mit feinen Fasern */
+.tape { mix-blend-mode: normal; background:
+  repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0 2px, rgba(0,0,0,0) 2px 7px),
+  linear-gradient(180deg, rgba(232, 214, 164, 0.92), rgba(214, 192, 138, 0.88)); opacity: 0.9;
+  box-shadow: 0 2px 4px rgba(60, 40, 15, 0.25); }
+/* Höher als das Fenster? Dann von oben verkleinern (der Browser richtet überhohe Elemente oben aus) */
+.vcard.pad, .vveil.on .vcard.pad { transform-origin: 50% 0; }
+/* Eingeklebtes Video liegt über Knick und Knittern des Papiers, der Text bleibt „auf“ dem Papier */
+.vcard.museum .pad-ink { z-index: auto; }

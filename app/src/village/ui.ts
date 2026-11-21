@@ -242,48 +242,17 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   document.body.appendChild(shop);
   const frame = shop.querySelector('iframe')!;
 
-  // ---------- Museum: Ausstellungsraum mit goldgerahmtem Projektvideo
-  const museum = el('div', 'vmuseum');
-  museum.setAttribute('role', 'dialog');
-  museum.setAttribute('aria-label', 'Museum');
-  museum.innerHTML = `
-    <div class="vmuseum-room" aria-hidden="true"></div>
-    <button class="vbtn vmuseum-back" data-act="close">← Zurück ins Dorf</button>
-    <div class="vmuseum-stage">
-      <div class="vmuseum-frame">
-        <video class="vmuseum-video" controls playsinline preload="metadata" poster="${MUSEUM_POSTER}"></video>
-        <div class="vmuseum-empty"><span class="hw-big">Hier läuft bald unser fertiges Projekt.</span><small>Video ablegen unter <code>app/public${MUSEUM_VIDEO}</code></small></div>
-      </div>
-      <div class="vmuseum-plaque">
-        <span class="vmuseum-no">Exponat Nr. 1</span>
-        <b>${MUSEUM_TITLE}</b>
-        <span>${MUSEUM_NOTE}</span>
-        <span class="vmuseum-tools">Skizze → SketchToCAD → USD → Szene</span>
-      </div>
-    </div>`;
-  document.body.appendChild(museum);
-  const video = museum.querySelector('video')!;
-  video.addEventListener('error', () => museum.classList.add('empty'));
-  video.addEventListener('loadeddata', () => museum.classList.remove('empty'));
-  function openMuseum() {
-    questDone('museum');
-    veil.classList.remove('on');
-    if (!video.src) { museum.classList.add('empty'); video.src = MUSEUM_VIDEO; }
-    museum.classList.add('on');
-    setOpen('shop');
-    setTimeout(() => { if (!museum.classList.contains('empty')) video.play().catch(() => {}); }, 450);
-  }
-
   let open: 'card' | 'shop' | null = null;
   const setOpen = (v: typeof open) => { open = v; opts.onOpenChange?.(!!v); };
 
-  function showCard(html: string, pad = false) {
+  function showCard(html: string, pad = false, kind: '' | 'museum' = '') {
     card.classList.toggle('pad', pad);
+    card.classList.toggle('museum', kind === 'museum');
     card.innerHTML = pad
       ? `<div class="pad-board" aria-hidden="true"></div><div class="pad-sheet s2" aria-hidden="true"></div><div class="pad-sheet s1" aria-hidden="true"></div>
-         <div class="pad-paper"><div class="pad-ink">${html}</div>${crumple(1 + Math.floor(Math.random() * 90))}<div class="pad-light" aria-hidden="true"></div></div>
+         <div class="pad-paper${kind === 'museum' ? ' plain' : ''}"><div class="pad-ink">${html}</div>${crumple(1 + Math.floor(Math.random() * 90))}<div class="pad-light" aria-hidden="true"></div></div>
          <span class="ear ear-tr" aria-hidden="true"></span><span class="ear ear-bl" aria-hidden="true"></span>
-         ${spiral(560)}<button class="vcard-x hw-x" data-act="close" aria-label="Schließen">×</button>`
+         ${spiral(kind === 'museum' ? 940 : 560)}<button class="vcard-x hw-x" data-act="close" aria-label="Schließen">×</button>`
       : `<button class="vcard-x" data-act="close" aria-label="Schließen">×</button>${html}`;
     if (pad) {
       scribble(card);
@@ -310,7 +279,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
 
   function closeAll() {
     veil.classList.remove('on');
-    if (museum.classList.contains('on')) { museum.classList.remove('on'); video.pause(); }
+    card.querySelector('video')?.pause();
     if (shop.classList.contains('on')) {
       shop.classList.remove('on');
       setTimeout(() => { if (!shop.classList.contains('on')) frame.src = 'about:blank'; }, 400);
@@ -363,6 +332,31 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     <div class="pad-links">
       <a class="pad-link minor" href="mailto:${CONTACT_MAIL}"><span class="hw">Fragen? Schreib uns</span>${UNDERLINED}</a>
     </div>`;
+
+  const MUSEUM = `
+    <div class="pad-head hw">Notiz: Museum</div>
+    <h2 class="pad-h hw">Exponat Nr. 1 – ${MUSEUM_TITLE}</h2>
+    <figure class="pin">
+      <span class="tape tl" aria-hidden="true"></span><span class="tape tr" aria-hidden="true"></span>
+      <video class="pin-video" controls playsinline preload="metadata" poster="${MUSEUM_POSTER}" src="${MUSEUM_VIDEO}"></video>
+      <div class="pin-empty"><span class="hw">Hier läuft bald unser fertiges Projekt.</span><small>Video ablegen unter app/public${MUSEUM_VIDEO}</small></div>
+    </figure>
+    <p class="pin-caption hw">${MUSEUM_NOTE}</p>
+    <p class="pin-flow hw">Skizze → SketchToCAD → USD → Szene</p>
+    <div class="pad-links">
+      <button class="pad-link minor" data-act="close"><span class="hw">← zurück ins Dorf</span>${UNDERLINED}</button>
+    </div>`;
+
+  function openMuseum() {
+    questDone('museum');
+    if (shop.classList.contains('on')) closeAll();
+    showCard(MUSEUM, true, 'museum');
+    const v = card.querySelector<HTMLVideoElement>('video')!;
+    const fig = card.querySelector<HTMLElement>('.pin')!;
+    const empty = () => { fig.classList.add('empty'); requestAnimationFrame(() => fitPad()); };
+    v.addEventListener('error', empty);
+    v.addEventListener('loadedmetadata', () => { fig.classList.remove('empty'); requestAnimationFrame(() => fitPad()); setTimeout(() => v.play().catch(() => {}), 500); });
+  }
 
   function openTool(house: string) {
     if (house !== 'Werkstatt') questDone('house');

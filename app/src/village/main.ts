@@ -78,9 +78,9 @@ const RING = [
   { a: 0.43, wall: '#f3dcb2', roof: '#c4493a', w: 3.0, label: 'Torhaus Ost' },
   { a: 1.36, wall: '#efd2a8', roof: '#3f7f86', w: 3.4, label: 'Blaues Haus' },
   { a: 1.98, wall: '#f6e2c4', roof: '#9b4f5f', w: 3.0, d: 2.7, h: 1.9, label: 'Rosenhaus' },
-  { a: 2.6, wall: '#f4dcc0', roof: '#d39a3a', w: 3.3, label: 'Senfhaus' },
+  { a: 2.6, wall: '#f4dcc0', roof: '#d39a3a', w: 3.3, label: 'Museum' },          // direkt hinter dem Brunnen (rechts, frei sichtbar) – Projektvideo
   { a: 3.62, wall: '#eed7b8', roof: '#5d7f4a', w: 3.3, label: 'Kräuterhaus' },
-  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Museum' },   // wird als Museum gebaut (Projektvideo)
+  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Rathaus' },
   { a: -1.0, wall: '#f0d8b6', roof: '#6a5a9a', w: 3.2, label: 'Fliederhaus' },
   { a: -0.42, wall: '#f3dcb2', roof: '#c26a3a', w: 3.0, label: 'Torhaus West' },
 ];
@@ -832,7 +832,7 @@ const ui = createUI({
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
     // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
-    paused = open && !!document.querySelector('.vshop.on, .vmuseum.on');
+    paused = open && !!document.querySelector('.vshop.on, .vveil.on .vcard.museum');
   },
 });
 ui.setMode('intro');
