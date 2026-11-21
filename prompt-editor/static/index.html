@@ -174,7 +174,10 @@ function showError(message) {
 }
 function renderLog(res) {
   const el = $("log"); el.replaceChildren(); el.classList.remove("muted");
-  for (const q of res.rueckfragen || []) logEntry(el, "q", `Rückfrage: ${q}`);
+  for (const q of res.rueckfragen || []) {
+    const opts = (q.optionen || []).map(o => o.label).join(" / ");
+    logEntry(el, "q", `Rückfrage: ${typeof q === "string" ? q : q.frage}${opts ? ` (${opts})` : ""}`);
+  }
   for (const l of res.aufrufe || []) {
     if (l.werkzeug === "frage_nach") continue;
     const { cad_code, ...args } = l.argumente;

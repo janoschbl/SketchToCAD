@@ -45,6 +45,82 @@ def set_color(mesh: trimesh.Trimesh, rgb):
     mesh.visual = trimesh.visual.TextureVisuals(material=mat)
 
 
+def ascii_name(name: str) -> str:
+    from unicodedata import normalize
+    name = str(name).replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+    name = name.replace("Ä", "Ae").replace("Ö", "Oe").replace("Ü", "Ue")
+    return normalize("NFKD", name).encode("ascii", "ignore").decode()
+
+
+def texture_of(mesh: trimesh.Trimesh):
+    """Grundfarb-Textur (PIL-Bild) eines Teils oder None."""
+    mat = getattr(mesh.visual, "material", None)
+    img = getattr(mat, "baseColorTexture", None)
+    if img is None:
+        img = getattr(mat, "image", None)
+    uv = getattr(mesh.visual, "uv", None)
+    if img is None or uv is None or len(uv) != len(mesh.vertices):
+        return None
+    return img
+
+
+def tint(mesh: trimesh.Trimesh, rgb):
+    """Grundfarbfaktor setzen, die Textur bleibt erhalten (Farbe wird mit ihr multipliziert)."""
+    if len(rgb) != 3 or any(not isinstance(c, (int, np.integer)) or not 0 <= c <= 255 for c in rgb):
+        raise ValueError("RGB braucht drei Ganzzahlen zwischen 0 und 255.")
+    mat = getattr(mesh.visual, "material", None)
+    if not isinstance(mat, trimesh.visual.material.PBRMaterial):
+        set_color(mesh, rgb)
+        return
+    mat = mat.copy()
+    mat.baseColorFactor = [*rgb, 255]
+    mesh.visual.material = mat
+
+
+def sample_surface_uv(mesh: trimesh.Trimesh, count=4000, seed=0):
+    """UV-Koordinaten zufälliger Oberflächenpunkte (flächengewichtet) – nur der genutzte Teil der Textur."""
+    uv = np.asarray(mesh.visual.uv, dtype=float)
+    area = mesh.area_faces
+    if not len(area) or area.sum() <= 0:
+        return uv
+    rng = np.random.default_rng(seed)
+    faces = rng.choice(len(area), size=count, p=area / area.sum())
+    a, b = rng.random((2, count))
+    flip = a + b > 1
+    a[flip], b[flip] = 1 - a[flip], 1 - b[flip]
+    f = mesh.faces[faces]
+    return uv[f[:, 0]] * (1 - a - b)[:, None] + uv[f[:, 1]] * a[:, None] + uv[f[:, 2]] * b[:, None]
+
+
+def uv_to_pixel(uv, size):
+    """trimesh-UV (v nach oben) → Pixel im Texturbild (y nach unten), mit Wiederholung."""
+    w, h = size
+    u, v = np.mod(uv[:, 0], 1.0), np.mod(uv[:, 1], 1.0)
+    return (np.clip((u * w).astype(int), 0, w - 1), np.clip(((1 - v) * h).astype(int), 0, h - 1))
+
+
+def texture_palette(mesh: trimesh.Trimesh, top=6, min_share=0.01):
+    """Hauptfarben der tatsächlich genutzten Textur: [(rgb, Anteil)], grob quantisiert."""
+    img = texture_of(mesh)
+    if img is None:
+        return []
+    arr = np.asarray(img.convert("RGB"))
+    x, y = uv_to_pixel(sample_surface_uv(mesh), (arr.shape[1], arr.shape[0]))
+    px = arr[y, x].astype(int)
+    factor = getattr(mesh.visual.material, "baseColorFactor", None)
+    if factor is not None:
+        px = px * np.asarray(factor[:3], dtype=int) // 255
+    q = px // 24
+    keys, inv, counts = np.unique(q, axis=0, return_inverse=True, return_counts=True)
+    out = []
+    for k in np.argsort(-counts)[:top]:
+        share = counts[k] / len(px)
+        if share < min_share:
+            break
+        out.append(([int(c) for c in px[inv.ravel() == k].mean(0).round()], round(float(share), 3)))
+    return out
+
+
 def fingerprint(mesh: trimesh.Trimesh) -> str:
     h = hashlib.sha256()
     h.update(np.ascontiguousarray(mesh.vertices, dtype=np.float64).tobytes())
@@ -59,7 +135,10 @@ def _flatten(raw: trimesh.Scene) -> trimesh.Scene:
         T, gname = raw.graph[node]
         m = raw.geometry[gname].copy()
         m.apply_transform(T)
-        name = _safe(str(node))
+        # trimesh hängt bei Meshes mit mehreren Primitiven zufällige Suffixe an den Knotennamen (Name_1a2b3c);
+        # dann den stabilen Geometrienamen nehmen, damit Teilnamen bei jedem Laden gleich bleiben.
+        auto = re.fullmatch(r"(.+)_[0-9a-f]{6}", str(node))
+        name = _safe(str(gname) if auto and str(gname).startswith(auto.group(1)) else str(node))
         base, i = name, 2
         while name in used:
             name = f"{base}_{i}"; i += 1
@@ -165,7 +244,11 @@ def parts_list(scene: trimesh.Scene) -> list[dict]:
     out = []
     for name, m in scene.geometry.items():
         lo, hi = m.bounds
-        out.append({"name": name, "farbe_rgb": color_of(m),
-                    "mitte": [round(float(x), 3) for x in (lo + hi) / 2],
-                    "groesse": [round(float(x), 3) for x in hi - lo]})
+        eintrag = {"name": name, "farbe_rgb": color_of(m),
+                   "mitte": [round(float(x), 4) for x in (lo + hi) / 2],
+                   "groesse": [round(float(x), 4) for x in hi - lo]}
+        palette = texture_palette(m)
+        if palette:
+            eintrag["textur"] = palette
+        out.append(eintrag)
     return out

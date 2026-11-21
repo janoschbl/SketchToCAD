@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createShader, playSweep, accentChain, ACCENTS } from 'glimm';
 import { IconBox, IconPencil, IconPhoto, IconShape, IconTypography, IconX } from '@tabler/icons-react';
+import type { PromptModel } from '@/lib/prompt';
 
 /* ─────────────────────────────────────────────────────────
  * PROMPT BAR – angepasst aus Beautiful UI „Prompt Bar“
@@ -9,8 +10,10 @@ import { IconBox, IconPencil, IconPhoto, IconShape, IconTypography, IconX } from
  * Änderungen gegenüber dem Original:
  *  - kein Demo-Autoplay
  *  - Anhänge = Kontext-Chips (ausgewählte Canvas-Elemente + Kommentare)
- *  - @ referenziert Canvas-Elemente bzw. lädt ein Bild hoch
- *  - / Befehle für SketchToCAD, deutsche Texte
+ *  - @ referenziert Canvas-Elemente bzw. lädt ein Bild hoch, deutsche Texte
+ *  - nur zum Ändern des ausgewählten 3D-Modells (kein Erzeugen von Grund auf)
+ *  - bei offener Rückfrage des Agents geht der Text als Antwort an ihn
+ *  - Modellwahl kommt vom Prompt-Editor-Backend (.env), Senden ist asynchron mit Ladezustand
  *  - Diktat über die Web Speech API (falls im Browser vorhanden)
  * ───────────────────────────────────────────────────────── */
 
@@ -26,7 +29,7 @@ function Icon({ children, size = 15, strokeWidth = 1.8 }: { children: ReactNode;
 
 export type ContextItem = {
   key: string;
-  kind: 'element' | 'comment';
+  kind: 'element' | 'comment' | 'part';
   label: string;
   elType?: string;
   n?: number;
@@ -34,20 +37,6 @@ export type ContextItem = {
 };
 
 export type Mentionable = { id: number; label: string; elType: string };
-
-const COMMANDS = [
-  { key: 'zu-3d', name: '/zu-3d', desc: 'Skizze in ein 3D-Modell umwandeln' },
-  { key: 'bearbeiten', name: '/bearbeiten', desc: 'Bild per Anweisung verändern' },
-  { key: 'hintergrund', name: '/hintergrund', desc: 'Hintergrund ersetzen' },
-  { key: 'varianten', name: '/varianten', desc: 'Mehrere Varianten erzeugen' },
-  { key: 'segmentieren', name: '/segmentieren', desc: 'Modell in CAD-Teile zerlegen' },
-];
-
-export const MODELS = [
-  { key: 'live', name: 'Sketch Live', tag: 'Schnell' },
-  { key: 'pro', name: 'Sketch Pro', tag: 'Präzise' },
-  { key: 'edit', name: 'Bild-Edit', tag: 'Bilder' },
-];
 
 export function ElIcon({ type, size = 13 }: { type?: string; size?: number }) {
   const p = { size, strokeWidth: 1.8 };
@@ -58,10 +47,10 @@ export function ElIcon({ type, size = 13 }: { type?: string; size?: number }) {
   return <IconShape {...p} />;
 }
 
-function parseToken(draft: string): { kind: 'at' | 'slash'; query: string; start: number } | null {
-  const match = /(^|\s)([@/])([\wäöüß-]*)$/i.exec(draft);
+function parseToken(draft: string): { kind: 'at'; query: string; start: number } | null {
+  const match = /(^|\s)@([\wäöüß-]*)$/i.exec(draft);
   if (!match) return null;
-  return { kind: match[2] === '@' ? 'at' : 'slash', query: match[3].toLowerCase(), start: match.index + match[1].length };
+  return { kind: 'at', query: match[2].toLowerCase(), start: match.index + match[1].length };
 }
 
 type Row = { key: string; name: string; desc: string; elType?: string; attach?: boolean; id?: number };
@@ -74,20 +63,33 @@ export default function PromptBar({
   onAttach,
   onSend,
   placeholder,
+  models,
+  defaultModel,
+  answering,
+  onClose,
 }: {
   context: ContextItem[];
   mentionables: Mentionable[];
   onRemoveContext: (key: string) => void;
   onMention: (id: number) => void;
   onAttach: () => void;
-  onSend: (text: string, model: string) => void;
+  /** Liefert false, wenn der Prompt nicht verarbeitet wurde – dann bleibt der Text stehen. */
+  onSend: (text: string, model: string) => Promise<boolean | void> | boolean | void;
   placeholder?: string;
+  models: PromptModel[];
+  defaultModel: string;
+  /** Der Agent wartet auf eine Antwort: Text geht als Antwort an die offene Rückfrage. */
+  answering?: boolean;
+  /** Esc bei leerem Eingabefeld */
+  onClose?: () => void;
 }) {
   const [draft, setDraft] = useState('');
   const [dismissed, setDismissed] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
-  const [model, setModel] = useState(MODELS[0]);
+  const [modelKey, setModelKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const model = models.find((m) => m.key === modelKey) ?? models.find((m) => m.key === defaultModel) ?? models[0];
   const [active, setActive] = useState(0);
   const [listening, setListening] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -111,17 +113,14 @@ export default function PromptBar({
   const SpeechRec = typeof window !== 'undefined' ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition : undefined;
 
   const token = dismissed ? null : parseToken(draft);
-  const menu: 'at' | 'slash' | null = plusOpen ? 'at' : token?.kind ?? null;
+  const menu: 'at' | null = plusOpen ? 'at' : token?.kind ?? null;
   const query = plusOpen ? '' : token?.query ?? '';
 
   const sources: Row[] = [
     { key: 'attach', name: 'Bild hochladen', desc: 'Foto oder Skizze vom Rechner', attach: true },
     ...mentionables.map((m) => ({ key: `el-${m.id}`, id: m.id, name: m.label, desc: 'auf dem Canvas', elType: m.elType })),
   ];
-  const rows: Row[] =
-    menu === 'at' ? sources.filter((s) => s.name.toLowerCase().includes(query))
-      : menu === 'slash' ? COMMANDS.filter((c) => c.name.slice(1).startsWith(query))
-        : [];
+  const rows: Row[] = menu === 'at' ? sources.filter((s) => s.name.toLowerCase().includes(query)) : [];
 
   useEffect(() => { setActive(0); setEngaged(false); }, [menu, query]);
 
@@ -130,7 +129,7 @@ export default function PromptBar({
     if (target) setRowBox({ top: target.offsetTop, height: target.offsetHeight });
   }, [menu, query, active, rows.length]);
 
-  const modelIndex = MODELS.findIndex((m) => m.key === model.key);
+  const modelIndex = Math.max(0, models.findIndex((m) => m.key === model.key));
   useLayoutEffect(() => {
     if (!modelOpen) return;
     const target = modelRowRefs.current[modelHovered ?? modelIndex];
@@ -141,7 +140,7 @@ export default function PromptBar({
     if (!modelOpen || !composerAnchorRef.current || !modelRef.current) return;
     const anchorRect = composerAnchorRef.current.getBoundingClientRect();
     const triggerRect = modelRef.current.getBoundingClientRect();
-    setModelMenuLeft(Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - 176)));
+    setModelMenuLeft(Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - 208)));
     setModelMenuBottom(anchorRect.bottom - triggerRect.top + 8);
   }, [modelOpen, expanded, model.name]);
 
@@ -176,10 +175,10 @@ export default function PromptBar({
     sweep.done.finally(() => { sweepingRef.current = false; });
   };
 
-  const selectModel = (next: (typeof MODELS)[number]) => {
-    setModel(next);
+  const selectModel = (next: PromptModel) => {
+    setModelKey(next.key);
     setModelOpen(false);
-    if (next.key === 'pro') celebrate();
+    if (/astra/i.test(next.key)) celebrate();
   };
 
   /* Diktat: echte Spracherkennung, wenn der Browser sie anbietet */
@@ -225,19 +224,21 @@ export default function PromptBar({
   const pick = (row: Row) => {
     const base = token ? draft.slice(0, token.start) : draft;
     if (row.attach) { onAttach(); setDraft(base); }
-    else if (menu === 'at') { if (row.id !== undefined) onMention(row.id); setDraft(base); }
-    else setDraft(`${base}${row.name} `);
+    else { if (row.id !== undefined) onMention(row.id); setDraft(base); }
     setPlusOpen(false);
     setDismissed(false);
     inputRef.current?.focus();
   };
 
-  const canSend = draft.trim().length > 0 || context.some((c) => c.kind === 'comment');
-  const send = () => {
+  const canSend = !busy && (draft.trim().length > 0 || (!answering && context.some((c) => c.kind === 'comment')));
+  const send = async () => {
     if (!canSend) return;
-    onSend(draft.trim(), model.name);
-    setDraft('');
     closeMenus();
+    setBusy(true);
+    let ok: boolean | void = false;
+    try { ok = await onSend(draft.trim(), model.key); } finally { setBusy(false); }
+    if (ok !== false) { setDraft(''); celebrate(); }
+    inputRef.current?.focus();
   };
 
   return (
@@ -264,18 +265,16 @@ export default function PromptBar({
                 onClick={() => pick(row)}
                 className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[6px] px-2 text-left"
               >
-                {menu === 'at' && (
-                  <span className="flex size-5.5 shrink-0 items-center justify-center text-ink-2">
-                    {row.attach ? <Icon size={15}><path d="m21.4 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></Icon> : <ElIcon type={row.elType} size={15} />}
-                  </span>
-                )}
+                <span className="flex size-5.5 shrink-0 items-center justify-center text-ink-2">
+                  {row.attach ? <Icon size={15}><path d="m21.4 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></Icon> : <ElIcon type={row.elType} size={15} />}
+                </span>
                 <span className="shrink-0 text-[12.5px] font-medium text-ink">{row.name}</span>
                 <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">{row.desc}</span>
               </button>
             ))}
             {rows.length === 0 && <div className="flex h-9 items-center px-2 text-[12px] text-ink-3">Keine Treffer für „{query}“</div>}
             <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">
-              {menu === 'at' ? 'Canvas-Elemente referenzieren oder Bild hochladen' : 'Befehle durchsuchen'}
+              Canvas-Elemente referenzieren oder Bild hochladen
             </div>
           </div>
         )}
@@ -283,7 +282,7 @@ export default function PromptBar({
         {modelOpen && (
           <div
             onMouseLeave={() => setModelHovered(null)}
-            className="absolute z-10 w-44 rounded-[10px] bg-surface p-1 shadow-raised"
+            className="absolute z-10 w-52 rounded-[10px] bg-surface p-1 shadow-raised"
             style={{ left: modelMenuLeft, bottom: modelMenuBottom, animation: 'pop-in 180ms cubic-bezier(0.23,1,0.32,1) both', transformOrigin: 'bottom left' }}
           >
             <span
@@ -291,7 +290,7 @@ export default function PromptBar({
               className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
               style={{ top: modelBox?.top ?? 0, height: modelBox?.height ?? 0, opacity: modelBox && modelHovered !== null ? 1 : 0, transition: 'top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease' }}
             />
-            {MODELS.map((m, i) => (
+            {models.map((m, i) => (
               <button
                 key={m.key}
                 type="button"
@@ -315,35 +314,35 @@ export default function PromptBar({
           <canvas ref={glimmRef} aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 h-full w-full" style={{ borderRadius: 'inherit' }} />
           <span ref={measureRef} aria-hidden="true" className="pointer-events-none invisible absolute whitespace-pre text-[13px] leading-[18px]">{draft}</span>
 
-          {context.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-0.5 pt-0.5">
-              {context.map((c) => (
-                <span
-                  key={c.key}
-                  title={c.label}
-                  className="flex h-6.5 max-w-60 items-center gap-1.5 rounded-chip bg-field py-1 pr-1 pl-1 text-[11.5px] text-ink-2 shadow-hairline"
-                  style={{ animation: 'pop-in 200ms cubic-bezier(0.23,1,0.32,1) both' }}
+          {context.length > 0 && <div className="flex flex-wrap gap-1.5 px-0.5 pt-0.5">
+            {context.map((c) => (
+              <span
+                key={c.key}
+                title={c.label}
+                className="flex h-6.5 max-w-60 items-center gap-1.5 rounded-chip bg-field py-1 pr-1 pl-1 text-[11.5px] text-ink-2 shadow-hairline"
+                style={{ animation: 'pop-in 200ms cubic-bezier(0.23,1,0.32,1) both' }}
+              >
+                {c.kind === 'comment' ? (
+                  <span className="flex size-4.5 shrink-0 items-center justify-center rounded-full rounded-bl-[3px] bg-bui-accent text-[10px] font-semibold text-white">{c.n}</span>
+                ) : c.kind === 'part' ? (
+                  <span className="flex size-4.5 shrink-0 items-center justify-center text-ink-3"><IconShape size={12} stroke={1.8} /></span>
+                ) : c.thumb ? (
+                  <img src={c.thumb} alt="" className="size-4.5 shrink-0 rounded-[4px] object-cover shadow-hairline" />
+                ) : (
+                  <span className="flex size-4.5 shrink-0 items-center justify-center text-ink-3"><ElIcon type={c.elType} size={12} /></span>
+                )}
+                <span className="truncate">{c.label}</span>
+                <button
+                  type="button"
+                  aria-label={`${c.label} entfernen`}
+                  onClick={() => onRemoveContext(c.key)}
+                  className="-my-1 flex size-5 shrink-0 items-center justify-center rounded-[5px] text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink"
                 >
-                  {c.kind === 'comment' ? (
-                    <span className="flex size-4.5 shrink-0 items-center justify-center rounded-full rounded-bl-[3px] bg-bui-accent text-[10px] font-semibold text-white">{c.n}</span>
-                  ) : c.thumb ? (
-                    <img src={c.thumb} alt="" className="size-4.5 shrink-0 rounded-[4px] object-cover shadow-hairline" />
-                  ) : (
-                    <span className="flex size-4.5 shrink-0 items-center justify-center text-ink-3"><ElIcon type={c.elType} size={12} /></span>
-                  )}
-                  <span className="truncate">{c.label}</span>
-                  <button
-                    type="button"
-                    aria-label={`${c.label} entfernen`}
-                    onClick={() => onRemoveContext(c.key)}
-                    className="-my-1 flex size-5 shrink-0 items-center justify-center rounded-[5px] text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink"
-                  >
-                    <IconX size={10} strokeWidth={2.5} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
+                  <IconX size={10} strokeWidth={2.5} />
+                </button>
+              </span>
+            ))}
+          </div>}
 
           <div ref={controlsRef} className={`grid items-end gap-x-1 gap-y-1.5 ${expanded ? 'grid-cols-[28px_auto_minmax(0,1fr)_28px_28px]' : 'grid-cols-[28px_minmax(0,1fr)_auto_28px_28px]'}`}>
             <button
@@ -371,10 +370,14 @@ export default function PromptBar({
                   }
                   if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') { event.preventDefault(); pick(rows[active]); return; }
                 }
-                if (event.key === 'Escape') { setDismissed(true); closeMenus(); (event.target as HTMLTextAreaElement).blur(); return; }
+                if (event.key === 'Escape') {
+                  if (!draft && !menu && onClose) { onClose(); return; }
+                  setDismissed(true); closeMenus(); (event.target as HTMLTextAreaElement).blur(); return;
+                }
                 if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
               }}
-              placeholder={listening ? 'Ich höre zu…' : placeholder ?? 'Beschreibe, was passieren soll…'}
+              readOnly={busy}
+              placeholder={busy ? 'Modell wird geändert…' : listening ? 'Ich höre zu…' : answering ? 'Oder antworte hier mit eigenen Worten…' : placeholder ?? 'Beschreibe, was passieren soll…'}
               aria-label="Prompt"
               className={`min-h-7 w-full min-w-0 resize-none bg-transparent px-1 py-[5px] text-[13px] leading-[18px] text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 ${expanded ? 'col-span-full col-start-1 row-start-1' : 'col-start-2 row-start-1'}`}
             />
@@ -411,13 +414,17 @@ export default function PromptBar({
 
             <button
               type="button"
-              aria-label="Senden"
+              aria-label={busy ? 'Wird verarbeitet' : 'Senden'}
               disabled={!canSend}
               onClick={send}
               className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] ${expanded ? 'col-start-5 row-start-2' : 'col-start-5 row-start-1'}`}
-              style={{ background: canSend ? 'var(--ink)' : 'var(--line-strong)', color: canSend ? 'var(--surface)' : 'var(--ink-2)' }}
+              style={{ background: canSend || busy ? 'var(--ink)' : 'var(--line-strong)', color: canSend || busy ? 'var(--surface)' : 'var(--ink-2)' }}
             >
-              <Icon size={16} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
+              {busy ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" className="animate-spin" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9" /></svg>
+              ) : (
+                <Icon size={16} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
+              )}
             </button>
           </div>
         </div>
