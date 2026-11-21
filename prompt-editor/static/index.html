@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SketchToCAD – Prompt-Editor</title>
+<style>
+  :root { --bg:#f6f6f4; --panel:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e2dd; --accent:#2f5bd3; --err:#b3261e; --ok:#1e7a3c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink); background:var(--bg); height:100vh; display:grid; grid-template-columns: 1fr 380px; }
+  #viewer { position:relative; }
+  #viewer canvas { display:block; width:100%; height:100%; }
+  #drop { position:absolute; inset:24px; border:2px dashed var(--line); border-radius:12px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--muted); background:rgba(255,255,255,.6); }
+  #drop.hidden { display:none; }
+  #hint { position:absolute; left:16px; bottom:12px; color:var(--muted); font-size:12px; }
+  aside { background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  section { padding:14px 16px; border-bottom:1px solid var(--line); }
+  h1 { font-size:15px; margin:0 0 2px; } h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0 0 8px; }
+  textarea { width:100%; min-height:70px; resize:vertical; border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; }
+  button, select, label.btn { font:inherit; border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .chip { display:inline-block; padding:2px 8px; border-radius:99px; background:#eef2fc; color:var(--accent); font-size:12px; }
+  #teile { display:flex; flex-wrap:wrap; gap:6px; }
+  #teile button { padding:2px 8px; font-size:12px; display:flex; align-items:center; gap:6px; }
+  #teile button.sel { border-color:var(--accent); background:#eef2fc; }
+  .dot { width:10px; height:10px; border-radius:50%; border:1px solid #0002; }
+  #scroll { overflow:auto; flex:1; min-height:0; }
+  .log { font-size:12px; border-left:3px solid var(--line); padding:4px 8px; margin:6px 0; }
+  .log.err { border-color:var(--err); } .log.ok { border-color:var(--ok); } .log.q { border-color:#c98a00; background:#fff8e6; }
+  code { font-size:11.5px; background:#f2f2ef; padding:1px 4px; border-radius:4px; }
+  #verlauf div { padding:4px 0; border-bottom:1px dashed var(--line); cursor:pointer; font-size:12.5px; }
+  #verlauf div.cur { font-weight:600; }
+  .muted { color:var(--muted); font-size:12px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="viewer">
+  <div id="drop"><strong>3D-Modell hierher ziehen</strong><span>GLB, GLTF, OBJ oder USD</span>
+    <label class="btn">Datei wählen <input id="file" type="file" accept=".glb,.gltf,.obj,.usd,.usda,.usdc" hidden></label></div>
+  <div id="hint">Teil anklicken = auswählen · Ziehen = drehen · Scrollen = zoomen</div>
+</div>
+<aside>
+  <section>
+    <h1>SketchToCAD – Prompt-Editor</h1>
+    <div class="muted" id="cfg">…</div>
+  </section>
+  <section>
+    <h2>Auftrag</h2>
+    <div id="auswahl" class="muted">Kein Teil ausgewählt</div>
+    <textarea id="prompt" placeholder="z. B. „Mach die Felgen weiß“ oder „Horn lila und etwas größer“"></textarea>
+    <div class="row">
+      <label class="btn">Bild anhängen <input id="bild" type="file" accept="image/*" hidden></label>
+      <span id="bildname" class="muted"></span>
+    </div>
+    <div class="row">
+      <select id="modell"></select>
+      <button class="primary" id="senden" disabled>Ändern</button>
+      <button id="undo" disabled>Rückgängig</button>
+      <a id="usd" class="btn" style="display:none"><button>USD exportieren</button></a>
+    </div>
+  </section>
+  <section>
+    <h2>Teile</h2>
+    <div id="teile" class="muted">–</div>
+  </section>
+  <div id="scroll">
+    <section><h2>Ergebnis</h2><div id="log" class="muted">–</div></section>
+    <section><h2>Versionen</h2><div id="verlauf" class="muted">–</div></section>
+  </div>
+</aside>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const $ = (id) => document.getElementById(id);
+let session = null, selected = "", current = null, meshesByName = {};
+
+// ---------- Viewer
+const host = $("viewer");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+host.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf6f6f4);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 1000);
+const controls = new OrbitControls(camera, renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(3, 5, 4); scene.add(sun);
+scene.add(new THREE.GridHelper(10, 20, 0xd0d0ca, 0xe4e4df));
+function resize() { const r = host.getBoundingClientRect(); renderer.setSize(r.width, r.height); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); }
+addEventListener("resize", resize); resize();
+(function loop() { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+
+const loader = new GLTFLoader();
+function show(url, frame) {
+  loader.load(url + "?t=" + Date.now(), (gltf) => {
+    if (current) scene.remove(current);
+    current = gltf.scene; meshesByName = {};
+    current.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); meshesByName[o.name || o.parent?.name] = o; o.userData.teil = o.name || o.parent?.name; } });
+    scene.add(current);
+    if (frame) {
+      const box = new THREE.Box3().setFromObject(current), size = box.getSize(new THREE.Vector3()).length(), c = box.getCenter(new THREE.Vector3());
+      controls.target.copy(c); camera.position.copy(c).add(new THREE.Vector3(size * 0.8, size * 0.5, size * 0.9));
+    }
+    highlight();
+  });
+}
+function highlight() {
+  for (const [n, m] of Object.entries(meshesByName)) m.material.emissive?.setHex(n === selected ? 0x2f5bd3 : 0x000000);
+}
+
+// Teil per Klick auswählen (Raycasting)
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let down = null;
+renderer.domElement.addEventListener("pointerdown", (e) => down = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!current || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObject(current, true)[0];
+  select(hit ? hit.object.userData.teil : "");
+});
+function select(n) { selected = n || ""; $("auswahl").innerHTML = selected ? `Ausgewählt: <span class="chip">${selected}</span>` : "Kein Teil ausgewählt"; renderParts(lastParts); highlight(); }
+
+// ---------- UI
+let lastParts = [];
+function renderParts(parts) {
+  lastParts = parts || [];
+  $("teile").innerHTML = ""; $("teile").classList.remove("muted");
+  for (const p of lastParts) {
+    const b = document.createElement("button"); if (p.name === selected) b.className = "sel";
+    const col = p.farbe_rgb ? `rgb(${p.farbe_rgb.join(",")})` : "#ccc";
+    b.innerHTML = `<span class="dot" style="background:${col}"></span>${p.name}`;
+    b.onclick = () => select(p.name === selected ? "" : p.name);
+    $("teile").append(b);
+  }
+}
+function renderHistory(h, v) {
+  $("verlauf").innerHTML = ""; $("verlauf").classList.remove("muted");
+  [...h].reverse().forEach((e) => {
+    const d = document.createElement("div"); if (e.version === v) d.className = "cur";
+    d.textContent = `v${e.version} · ${e.zeit} · ${e.auftrag}`;
+    d.onclick = () => show(`/api/${session}/v/${e.version}.glb`, false);
+    $("verlauf").append(d);
+  });
+}
+function renderLog(res) {
+  const el = $("log"); el.innerHTML = ""; el.classList.remove("muted");
+  for (const q of res.rueckfragen || []) el.insertAdjacentHTML("beforeend", `<div class="log q"><b>Rückfrage der KI:</b> ${q}</div>`);
+  for (const l of res.aufrufe || []) {
+    if (l.werkzeug === "frage_nach") continue;
+    const args = { ...l.argumente }; delete args.cad_code;
+    const cls = l.fehler ? "err" : "ok";
+    el.insertAdjacentHTML("beforeend", `<div class="log ${cls}"><code>${l.werkzeug}(${JSON.stringify(args)})</code><br>${l.fehler ? "Fehler: " + l.fehler : "Geändert: " + l.ergebnis.join(", ")}${l.argumente?.cad_code ? "<br><details><summary>CAD-Code der KI</summary><pre style='white-space:pre-wrap;font-size:11px'>" + l.argumente.cad_code.replace(/</g, "&lt;") + "</pre></details>" : ""}</div>`);
+  }
+  if (res.dauer_s !== undefined) el.insertAdjacentHTML("beforeend", `<div class="muted">Dauer ${res.dauer_s} s · ${JSON.stringify(res.nutzung || {})}${res.neue_version ? "" : " · keine neue Version"}</div>`);
+}
+function apply(res, frame) {
+  session = res.session; renderParts(res.teile); renderHistory(res.verlauf, res.version);
+  show(res.glb_url, frame);
+  $("drop").classList.add("hidden"); $("senden").disabled = false; $("undo").disabled = res.verlauf.length <= 1;
+  $("usd").style.display = ""; $("usd").href = `/api/${session}/export.usda`;
+}
+async function call(url, opts) {
+  const r = await fetch(url, opts); const j = await r.json();
+  if (!r.ok) throw new Error(j.fehler || r.statusText); return j;
+}
+
+async function upload(file) {
+  const fd = new FormData(); fd.append("datei", file);
+  $("log").textContent = "Lade hoch …";
+  try { const res = await call("/api/upload", { method: "POST", body: fd }); select(""); apply(res, true); $("log").textContent = "Bereit. Teil anklicken oder direkt einen Auftrag schreiben."; }
+  catch (e) { $("log").innerHTML = `<div class="log err">${e.message}</div>`; }
+}
+$("file").onchange = (e) => e.target.files[0] && upload(e.target.files[0]);
+host.addEventListener("dragover", (e) => e.preventDefault());
+host.addEventListener("drop", (e) => { e.preventDefault(); e.dataTransfer.files[0] && upload(e.dataTransfer.files[0]); });
+$("bild").onchange = (e) => $("bildname").textContent = e.target.files[0]?.name || "";
+
+$("senden").onclick = async () => {
+  const text = $("prompt").value.trim(); if (!text || !session) return;
+  const fd = new FormData(); fd.append("auftrag", text); fd.append("ausgewaehlt", selected); fd.append("modell", $("modell").value);
+  if ($("bild").files[0]) fd.append("bild", $("bild").files[0]);
+  $("senden").disabled = true; $("log").textContent = "KI plant …";
+  try { const res = await call(`/api/${session}/edit`, { method: "POST", body: fd }); apply(res, false); renderLog(res); if (res.neue_version) $("prompt").value = ""; }
+  catch (e) { $("log").innerHTML = `<div class="log err">${e.message}</div>`; }
+  finally { $("senden").disabled = false; }
+};
+$("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("senden").click(); });
+$("undo").onclick = async () => { try { apply(await call(`/api/${session}/undo`, { method: "POST" }), false); $("log").textContent = "Letzte Version rückgängig gemacht."; } catch (e) { $("log").innerHTML = `<div class="log err">${e.message}</div>`; } };
+
+const cfg = await call("/api/config");
+$("cfg").textContent = `KI-Modus: ${cfg.modus === "mock" ? "Test ohne KI (Regeln)" : "OpenAI"} · Modell: ${cfg.modell}`;
+for (const m of cfg.modelle) $("modell").insertAdjacentHTML("beforeend", `<option ${m === cfg.modell ? "selected" : ""}>${m}</option>`);
+</script>
+</body>
+</html>
