@@ -1,4 +1,4 @@
-# SketchToCAD – Prompt-Editor (Web-App)
+# SketchTo3D – Prompt-Editor (Web-App)
 
 Ein bestehendes 3D-Modell per Text (und optional Referenzbild) gezielt ändern, ohne es neu zu erzeugen.
 Die KI (z. B. GPT-6.1 Sol über die OpenAI-API) plant nur Werkzeug-Aufrufe; Python führt sie aus.

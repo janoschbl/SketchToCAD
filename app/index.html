@@ -3,10 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>SketchToCAD – Prototype</title>
+    <title>SketchTo3D – Prototype</title>
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // Vom Dorf geöffnet (?from=village): Zurück-Knopf zum Skizzendorf
+      if (new URLSearchParams(location.search).get('from') === 'village') {
+        addEventListener('DOMContentLoaded', function () {
+          var a = document.createElement('a');
+          a.href = '/village.html?slide=0';
+          a.textContent = '\u2190 Back to the village';
+          a.style.cssText = 'position:fixed;z-index:99999;top:10px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:999px;background:#fdf3e1;color:#2a2118;font:600 14px/1 system-ui,sans-serif;text-decoration:none;border:1.5px solid #2a2118;box-shadow:0 4px 12px rgba(0,0,0,.25)';
+          document.body.appendChild(a);
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,3 +1,4 @@
+import { showSlide } from './slide';
 import * as THREE from 'three';
 import './village.css';
 import * as P from './props';
@@ -120,7 +121,7 @@ add({ id: 'sign', make: P.signpost, x: 1.9, z: 9.8, col: 0.3 });
 add({ id: 'bench1', make: P.bench, x: -3.6, z: 1.9, ry: Math.atan2(-3.6, 1.9) + Math.PI, col: 0.9 });
 add({ id: 'bench2', make: P.bench, x: 10.5, z: 12.6, ry: -2.4, col: 0.9 });
 add({ id: 'bench3', make: P.bench, x: -18.5, z: 22.8, ry: 2.3, col: 0.9 });
-add({ id: 'plazaBench', make: P.bench, x: 3.7, z: -1.3, ry: -1.24, col: 1 });
+// plazaBench (rechts vor dem Brunnen) entfernt: stand beim Ankommen frontal im Bild
 add({ id: 'millBench', make: P.bench, x: -1.5, z: -26, ry: 1.3, col: 1 });
 const dock = (id: string, x: number, z: number, p: Blocker) => add({ id, label: 'Jetty', make: P.dock, x, z, ry: Math.atan2(-(p.x - x), -(p.z - z)), col: 0 });
 add({ id: 'bridge', make: P.footbridge, x: 17, z: 15, col: 0 });
@@ -130,17 +131,20 @@ dock('dock2', -21.4, 21, ponds[1]);
   // Laternen am Platzrand, dort wo die Häuser stehen (nicht in den Straßeneinfahrten)
   ...[0.43, 1.67, 2.3, 3.95, -1.0, -0.42].map((a) => [Math.sin(a) * 4.9, Math.cos(a) * 4.9]),
   [-1.5, 11.5], [1.5, -10.5], [-0.8, -22], [-9.5, 3.2], [-15, 10.5], [10, 9.4], [1.8, -27],
-].forEach(([x, z], i) =>
-  add({ id: 'lantern' + i, make: P.lantern, x, z, col: 0.3 }));
+].forEach(([x, z], i) => {
+  // Laternen 2, 3 (hinter dem Brunnen links/rechts) und 7 (mittig dahinter) entfernt: standen beim Ankommen frontal im Bild
+  if (i === 2 || i === 3 || i === 7) return;
+  add({ id: 'lantern' + i, make: P.lantern, x, z, col: 0.3 });
+});
 
-// "SKETCH TO CAD" am Dorfrand im Süden: im Querformat eine Zeile, im Hochformat (Handy, iPad hochkant)
+// "SKETCH TO 3D" am Dorfrand im Süden: im Querformat eine Zeile, im Hochformat (Handy, iPad hochkant)
 // zwei Zeilen – die obere steht etwas dahinter auf einem hohen Steinsockel, damit beide lesbar bleiben
 const ASPECT0 = innerWidth > 0 && innerHeight > 0 ? innerWidth / innerHeight : 16 / 9;
 const PORTRAIT0 = ASPECT0 < 0.8;
 const LZ = 19, step = 2.05, LETTER_W = 5.6 * 0.34, LETTER_H = 7 * 0.34;
 const ROWS = PORTRAIT0
-  ? [{ text: 'SKETCH', z: LZ - 0.7, lift: 3.25 }, { text: 'TO CAD', z: LZ, lift: 0.55 }]
-  : [{ text: 'SKETCH TO CAD', z: LZ, lift: 0.55 }];
+  ? [{ text: 'SKETCH', z: LZ - 0.7, lift: 3.25 }, { text: 'TO 3D', z: LZ, lift: 0.55 }]
+  : [{ text: 'SKETCH TO 3D', z: LZ, lift: 0.55 }];
 let letterN = 0;
 ROWS.forEach((row) => {
   const w = (row.text.length - 1) * step;
@@ -234,7 +238,7 @@ gen.onDone = (o) => {
 // 1  Schwarzes Nichts → magischer Pinsel malt den Brunnen → Pinsel tippt hinein
 // 2  Eine Welle läuft vom Brunnen nach außen und erschafft die Welt, die Kamera zoomt selbst heraus.
 //    Zum Ende hin wird sie immer schneller – WUMM – der letzte schwarze Rest verpufft auf einen Schlag.
-// 3  Kameraflug hinunter in die Ich-Perspektive vor den Schriftzug SKETCH TO CAD
+// 3  Kameraflug hinunter in die Ich-Perspektive vor den Schriftzug SKETCH TO 3D
 // 4  Der Schriftzug wird rückwärts zur Skizze und zerstiebt zu Feenstaub
 // 5  Flug durch die Lücke ins Dorf, Landung auf dem Platz am Brunnen → frei herumlaufen
 
@@ -471,7 +475,7 @@ function moveFp(dx: number, dz: number) {
   else if (walkable(fp.pos.x, nz)) fp.pos.z = nz;
 }
 
-let time = 0, burst = false, twinkled = false, wummed = false, flew1 = false, dissolved = false, flew2 = false, waveR = 0;
+let time = 0, holdIntro = new URLSearchParams(location.search).get('slide') !== '0', burst = false, twinkled = false, wummed = false, flew1 = false, dissolved = false, flew2 = false, waveR = 0;
 let baseFov = 38;
 function resize() {
   const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight), pr = Math.min(devicePixelRatio, 1.75);
@@ -502,7 +506,7 @@ let manual = false;
 function frame(fixedDt?: number) {
   clock.update();
   const dt = fixedDt ?? Math.min(clock.getDelta(), 1 / 20);
-  time += dt;
+  if (!holdIntro) time += dt;
   const t = time;
 
   // ---------- Pinsel & Brunnen
@@ -695,7 +699,8 @@ function frame(fixedDt?: number) {
   }
   if (!uiVillage && t >= T_FP) { uiVillage = true; ui.setMode('village'); }
   // Claim: Titelkarte, während die Welt entsteht (bis kurz nach Beginn von Flug 1); Banner nach der Landung
-  const claimOn = t >= T_TAP - 0.1 && t < T_FLY1 + 0.5 && dash.t < 0;
+  const CLAIM_T0 = T_TAP - 0.1, CLAIM_T1 = CLAIM_T0 + (T_FLY1 + 0.5 - CLAIM_T0) / 2; // Claim nur halb so lange sichtbar
+  const claimOn = t >= CLAIM_T0 && t < CLAIM_T1 && dash.t < 0;
   if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
   if (t >= T_FP + 0.4 && dash.t < 0) { ui.showHero(); ui.showQuest(); }
   updateHint(t);
@@ -839,6 +844,14 @@ const ui = createUI({
   },
 });
 ui.setMode('intro');
+// Präsentationsfolie zuerst; die Intro-Animation wartet dahinter und startet, sobald sie ausblendet
+if (holdIntro) showSlide().then(() => { holdIntro = false; });
+// Pfeil links zurück zur Folie (solange das Intro läuft): Seite neu laden → Folie, danach startet die Intro-Animation wieder ganz von vorn
+addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' || holdIntro || uiVillage || e.repeat) return;
+  const u = new URL(location.href); u.searchParams.delete('slide');
+  location.replace(u.toString());
+});
 
 // Häuser und Brunnen anklickbar
 const ray = new THREE.Raycaster();

@@ -3,15 +3,15 @@
 
 // Platzhalter – vor dem Livegang ersetzen
 const CONTACT_MAIL = 'contact@example.com';
-const TOOL_URL = '/';
+const TOOL_URL = (import.meta.env.VITE_TOOL_URL as string | undefined) ?? '/';
 // Museum: fertiges Projektvideo. Datei hier ablegen: app/public/museum/projekt.mp4 (optional Vorschaubild projekt.jpg)
 const MUSEUM_VIDEO = '/museum/projekt.mp4';
 const MUSEUM_POSTER = '/museum/projekt.jpg';
 const MUSEUM_TITLE = 'Our first project';
-const MUSEUM_NOTE = 'From a sketch via SketchToCAD to the finished scene.'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
+const MUSEUM_NOTE = 'From a sketch via SketchTo3D to the finished scene.'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
 
 export const CLAIM = 'Design, don’t gamble.';
-export const SUBLINE = 'Prompting is fast. Sketching is precise. SketchToCAD gives you both – straight to 3D.';
+export const SUBLINE = 'Prompting is fast. Sketching is precise. SketchTo3D gives you both – straight to 3D.';
 /** Design-Varianten für den Claim im Intro, umschaltbar per ?claim=titel|hand|unten */
 export type ClaimVariant = 'titel' | 'hand' | 'unten';
 
@@ -119,7 +119,6 @@ function spiral(width: number) {
 /** Pipeline-Zeile: USD-Export und Zielprogramme (nur Namen, keine fremden Logos) */
 const TOOLS = `<p class="vtools"><span class="vtools-usd">USD</span><span class="vtools-arrow">→</span><span>Houdini</span><span>Unreal</span><span>Blender</span></p>`;
 
-const SWOOSH = `<svg class="swoosh" viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 15 C 60 6, 120 20, 180 11 S 270 8, 296 13" pathLength="1"/></svg>`;
 
 export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onWell?: () => void; onOpenChange?: (open: boolean) => void; claim?: ClaimVariant }): VillageUI {
   const variant: ClaimVariant = opts.claim ?? 'titel';
@@ -127,16 +126,13 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   // ---------- Claim im Intro (Titelkarte)
   const title = el('div', `vtitle vtitle-${variant}`);
   title.setAttribute('aria-live', 'polite');
-  title.innerHTML = variant === 'hand'
-    ? `<h1 class="vtitle-h"><span class="vtitle-reveal">${CLAIM}</span></h1><p class="vtitle-sub">${SUBLINE}</p>`
-    : `<p class="vtitle-kicker">3D assets for film &amp; post-production</p><h1 class="vtitle-h">Design, don’t <span class="accent">gamble.${SWOOSH}</span></h1><p class="vtitle-sub">${SUBLINE}</p>${TOOLS}`;
+  title.hidden = true; // Claim-Headline im Intro entfernt
   document.body.appendChild(title);
 
   // ---------- Banner nach der Landung: Claim + wichtigste Handlung
   const hero = el('section', 'vhero');
   hero.innerHTML = `
     <p class="vhero-kicker">For film, post &amp; art departments</p>
-    <h2 class="vhero-h">Design, don’t <span class="accent">gamble.${SWOOSH}</span></h2>
     <p class="vhero-sub">${SUBLINE}</p>
     <div class="vhero-actions">
       <button class="vcta" data-act="tool" data-house="Workshop">Create a 3D model now</button>
@@ -164,7 +160,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     <div class="vquest-body">
       <p class="vquest-kicker">Quest</p>
       <h3 class="vquest-h">Welcome to Sketch Village</h3>
-      <ul>${TASKS.map(([k, t, h]) => `<li data-q="${k}"><svg class="qbox" viewBox="0 0 24 24" aria-hidden="true"><path class="qframe" d="M4 5 C 9 3.5, 16 4.2, 20 4.6 C 20.5 10, 20 15, 19.6 20 C 14 20.4, 9 20.2, 4.4 19.6 C 3.8 14, 4 9, 4 5"/><path class="qtick" pathLength="1" d="M6 12 C 8 13.5, 9.5 15.5, 10.5 17.5 C 12.5 12, 16 7, 22 2.5"/></svg><span class="qt"><b>${t}</b><small>${h}</small></span></li>`).join('')}</ul>
+      <ul>${TASKS.map(([k, t, h]) => `<li data-q="${k}"><svg class="qbox" viewBox="0 0 24 24" aria-hidden="true"><path class="qframe" d="M4 5 C 9 3.5, 16 4.2, 20 4.6 C 20.5 10, 20 15, 19.6 20 C 14 20.4, 9 20.2, 4.4 19.6 C 3.8 14, 4 9, 4 5"/><path class="qtick" pathLength="1" d="M6 12 C 8 13.5, 9.5 15.5, 10.5 17.5 C 12.5 12, 16 7, 22 2.5"/></svg><span class="qt"><b><span>${t}</span></b><small>${h}</small></span></li>`).join('')}</ul>
       <p class="vquest-done">Quest complete! Have fun creating.</p>
     </div>`;
   document.body.appendChild(quest);
@@ -205,7 +201,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   // ---------- Leiste oben
   const bar = el('header', 'vbar');
   bar.innerHTML = `
-    <button class="vbar-logo" data-act="well" aria-label="To the well"><span class="vbar-word">Sketch<span>To</span>CAD</span><small>3D assets for film · USD export</small></button>
+    <button class="vbar-logo" data-act="well" aria-label="To the well"><span class="vbar-word">Sketch<span>To</span>3D</span><small>3D assets for film · USD export</small></button>
     <nav class="vbar-nav">
       <button data-act="project">About</button>
       <a href="mailto:${CONTACT_MAIL}">Contact</a>
@@ -292,6 +288,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   addEventListener('resize', () => { if (open === 'card') fitPad(); });
 
   function closeAll() {
+    if (full) { full.remove(); full = null; }
     veil.classList.remove('on');
     card.querySelector('video')?.pause();
     if (shop.classList.contains('on')) {
@@ -303,8 +300,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
 
   const WELL = `
     <div class="pad-head hw">Note from the well</div>
-    <h2 class="pad-h hw">Design, don’t gamble!</h2>
-    <p class="hw">Prompting is fast. Sketching is precise.<br>SketchToCAD gives you both – straight to 3D.</p>
+    <p class="hw">Prompting is fast. Sketching is precise.<br>SketchTo3D gives you both – straight to 3D.</p>
     <ol class="pad-list">
       <li class="hw"><b>Sketch</b> – like on paper, just endless.</li>
       <li class="hw"><b>Say</b> what the sketch can’t show: “wood, old, 10 cm longer”.</li>
@@ -319,7 +315,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
 
   const PROJECT = `
     <div class="pad-head hw">Note: About us</div>
-    <h2 class="pad-h hw">What is SketchToCAD?</h2>
+    <h2 class="pad-h hw">What is SketchTo3D?</h2>
     <p class="hw">Prompting is fast, but rarely gives you exactly what you have in mind. Sketching is precise, but slow to get to a finished 3D model.</p>
     <p class="hw">We combine both: you sketch, say what you want – and get a 3D model you can keep refining, part by part.</p>
     <p class="hw"><b>Who is it for?</b> Film and post-production teams building backgrounds and foregrounds – together with the art department.</p>
@@ -356,7 +352,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       <div class="pin-empty"><span class="hw">Our finished project will be showing here soon.</span><small>Put the video at app/public${MUSEUM_VIDEO}</small></div>
     </figure>
     <p class="pin-caption hw">${MUSEUM_NOTE}</p>
-    <p class="pin-flow hw">Sketch → SketchToCAD → USD → Scene</p>
+    <p class="pin-flow hw">Sketch → SketchTo3D → USD → Scene</p>
     <div class="pad-links">
       <button class="pad-link minor" data-act="close"><span class="hw">← back to the village</span>${UNDERLINED}</button>
     </div>`;
@@ -369,7 +365,47 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     const fig = card.querySelector<HTMLElement>('.pin')!;
     const empty = () => { fig.classList.add('empty'); requestAnimationFrame(() => fitPad()); };
     v.addEventListener('error', empty);
-    v.addEventListener('loadedmetadata', () => { fig.classList.remove('empty'); requestAnimationFrame(() => fitPad()); setTimeout(() => v.play().catch(() => {}), 500); });
+    v.addEventListener('loadedmetadata', () => {
+      fig.classList.remove('empty'); requestAnimationFrame(() => fitPad());
+      setTimeout(() => v.play().catch(() => {}), 500);
+      // Nach kurzem Zeigen im Block: sanft auf Vollbild aufblenden
+      setTimeout(() => { if (open === 'card' && !full && !v.paused) expandVideo(v, fig); }, 2600);
+    });
+  }
+
+  // ---------- Vollbild-Überblendung fürs Museumsvideo (eigener Layer, Video läuft nahtlos weiter)
+  let full: HTMLElement | null = null;
+  function collapseVideo(src?: HTMLVideoElement) {
+    const f = full; if (!f) return;
+    full = null;
+    const fv = f.querySelector('video')!;
+    if (src) { src.currentTime = fv.currentTime; if (!fv.ended) src.play().catch(() => {}); }
+    f.classList.remove('on');
+    setTimeout(() => f.remove(), 700);
+  }
+  function expandVideo(v: HTMLVideoElement, fig: HTMLElement) {
+    const r = fig.getBoundingClientRect();
+    const f = document.createElement('div');
+    f.className = 'vfull';
+    f.innerHTML = `<video playsinline src="${MUSEUM_VIDEO}"></video><button class="vfull-x" aria-label="Close">×</button>`;
+    const fv = f.querySelector('video')!;
+    // Start: exakt über dem Block im Papier, Ziel: ganzes Fenster
+    const sx = r.width / innerWidth, sy = r.height / innerHeight;
+    fv.style.transformOrigin = '0 0';
+    fv.style.transform = `translate(${r.left}px, ${r.top}px) scale(${sx}, ${sy})`;
+    fv.currentTime = v.currentTime;
+    document.body.appendChild(f);
+    full = f;
+    const go = () => {
+      fv.play().catch(() => {});
+      v.pause();
+      requestAnimationFrame(() => requestAnimationFrame(() => { f.classList.add('on'); fv.style.transform = 'translate(0,0) scale(1,1)'; }));
+    };
+    fv.addEventListener('loadeddata', go, { once: true });
+    fv.addEventListener('ended', () => collapseVideo(v));
+    f.querySelector('.vfull-x')!.addEventListener('click', () => collapseVideo(v));
+    f.addEventListener('click', (e) => { if (e.target === f) collapseVideo(v); });
+    fv.addEventListener('click', () => (fv.paused ? fv.play() : fv.pause()));
   }
 
   function openTool(house: string) {
@@ -378,6 +414,8 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     veil.classList.remove('on');
     (shop.querySelector('.vshop-title') as HTMLElement).textContent = house === 'Workshop' ? 'Workshop' : `Workshop · ${house}`;
     const url = `${TOOL_URL}?from=village&house=${encodeURIComponent(house)}`;
+    // Gehostete Seiten (Base44) senden X-Frame-Options: DENY → dort kein iframe, sondern normale Navigation (Canvas hat einen Zurück-Knopf)
+    if (import.meta.env.VITE_TOOL_URL) { location.href = url; return; }
     if (!frame.src.endsWith(url)) frame.src = url;
     shop.classList.add('on');
     setOpen('shop');
@@ -398,7 +436,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     else if (act === 'tool') openTool(t.dataset.house ?? 'Workshop');
     else if (act === 'replay') { closeAll(); opts.onReplayIntro(); }
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); closeAll(); } }, true);
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && full) { e.stopPropagation(); collapseVideo(card.querySelector('video') ?? undefined); } else if (e.key === 'Escape' && open) { e.stopPropagation(); closeAll(); } }, true);
 
   return {
     setMode(mode) {

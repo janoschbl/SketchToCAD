@@ -157,7 +157,7 @@ for n in font['name'].names:
         n.string = f'SketchHand-{weight}'
     elif n.nameID == 3:
         n.string = f'SketchHand-{weight}; modified from Caveat'
-font['name'].setName('Modified by SketchToCAD (2026) from Caveat, SIL Open Font License 1.1', 5, 3, 1, 0x409)
+font['name'].setName('Modified by SketchTo3D (2026) from Caveat, SIL Open Font License 1.1', 5, 3, 1, 0x409)
 
 font.flavor = 'woff2'
 font.save(dst)

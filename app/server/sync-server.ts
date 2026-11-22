@@ -1,5 +1,5 @@
 /**
- * SketchToCAD Sync-Server (Dev): Hocuspocus (Yjs) + SQLite-Persistenz + Blob-Ablage.
+ * SketchTo3D Sync-Server (Dev): Hocuspocus (Yjs) + SQLite-Persistenz + Blob-Ablage.
  *
  *   node server/sync-server.ts        (Node ≥ 23, Typen werden nativ entfernt)
  *

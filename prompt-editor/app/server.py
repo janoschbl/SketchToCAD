@@ -1,4 +1,4 @@
-"""SketchToCAD Prompt-Editor – Backend (FastAPI).
+"""SketchTo3D Prompt-Editor – Backend (FastAPI).
 
 Ablauf pro Änderung:
   Prompt (+ Bild, + ausgewähltes Teil) → KI plant Werkzeug-Aufrufe → Python führt aus → neue Version
@@ -51,7 +51,7 @@ ADHOC_TTL_S = float(os.environ.get("ADHOC_TTL_MIN", "60")) * 60
 ADHOC_MARKER = ".adhoc"
 SESSION_LOCKS = tuple(Lock() for _ in range(64))
 
-app = FastAPI(title="SketchToCAD Prompt-Editor")
+app = FastAPI(title="SketchTo3D Prompt-Editor")
 
 
 # ------------------------------------------------------------------ Sitzungen / Versionen

@@ -1,4 +1,4 @@
-# HANDOVER – SketchToCAD / SketchLab (Stand 2026-11-21)
+# HANDOVER – SketchTo3D / SketchLab (Stand 2026-11-21)
 
 Ziel: Skizze → 3D-Modell, nahezu in Echtzeit (RTX 2070, am besten auch Laptop-CPU), Gefühl wie NVIDIA Canvas (jeder Strich rechnet neu). MeshPad bleibt Baseline, ein eigenes kleines Modell wird unabhängig trainiert. Projektregeln: siehe `CLAUDE.md` (Sub-Agents nur GPT-6-Luna über `delegate_task`, Doku auf Deutsch, nur geprüfte Links). Vite-Dev-Server auf Port 5174 laufen lassen.
 

@@ -21,7 +21,7 @@ from urllib.parse import urljoin, urlparse
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
-UA = "SketchToCAD-Logo/0.1 (Prompt-Editor)"
+UA = "SketchTo3D-Logo/0.1 (Prompt-Editor)"
 MAX_BYTES = 6 * 1024 * 1024
 TIMEOUT_S = 8.0
 MIN_SIDE = 48

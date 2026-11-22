@@ -1,7 +1,7 @@
 # Prompt-Bearbeitung in der Hauptapp: Probleme und Aufgaben
 
 Übergabedokument für den nächsten Agent. Stand: 21.11.2026, Branch `prompt-editor`.
-Alle Pfade sind relativ zum Repo-Root `SketchToCAD/`. Zeilennummern gelten für den Stand dieses Dokuments.
+Alle Pfade sind relativ zum Repo-Root `SketchTo3D/`. Zeilennummern gelten für den Stand dieses Dokuments.
 
 ## 1. Worum es geht
 

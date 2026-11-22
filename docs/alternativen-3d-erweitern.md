@@ -2,7 +2,7 @@
 
 Stand: 2026-11-21. Gegenüberstellung zur bestehenden Architektur in [erweiterbare-modelle.md](erweiterbare-modelle.md).
 
-**Kennzeichnung:** [geprüft] bedeutet, die verlinkte Quelle wurde geöffnet und bestätigt die Aussage. [Annahme] bedeutet technische Einschätzung oder nicht unabhängig geprüfte Aussage. Recherche fokussiert auf die für SketchToCAD relevanten Kandidaten; Lizenzangaben beziehen sich auf die jeweils verlinkten Projektinformationen und sind vor Produktveröffentlichung samt Modellkarten/Abhängigkeiten nochmals juristisch zu prüfen.
+**Kennzeichnung:** [geprüft] bedeutet, die verlinkte Quelle wurde geöffnet und bestätigt die Aussage. [Annahme] bedeutet technische Einschätzung oder nicht unabhängig geprüfte Aussage. Recherche fokussiert auf die für SketchTo3D relevanten Kandidaten; Lizenzangaben beziehen sich auf die jeweils verlinkten Projektinformationen und sind vor Produktveröffentlichung samt Modellkarten/Abhängigkeiten nochmals juristisch zu prüfen.
 
 ## Kurzfazit
 
@@ -27,7 +27,7 @@ Stand: 2026-11-21. Gegenüberstellung zur bestehenden Architektur in [erweiterba
 
 [Annahme] PartCrafter und SAMPart3D lösen komplementäre Probleme: ersterer erzeugt mehrere Teile aus einem Bild, letzterer zerlegt ein vorhandenes 3D-Modell. Keiner ersetzt den inkrementellen, skizzengeführten Editierschritt. TRELLIS.2 liefert hochwertige Geometrie, aber ist weder lokal noch in 8 GB realistisch.
 
-## Empfehlung für SketchToCAD
+## Empfehlung für SketchTo3D
 
 ### 1. Wahl: unveränderliche Teile + 3D-Masken-Edit als austauschbares Backend
 
@@ -37,7 +37,7 @@ Stand: 2026-11-21. Gegenüberstellung zur bestehenden Architektur in [erweiterba
 
 **Hardware/Lizenz:** [geprüft] VoxHammer nennt ≥40 GB VRAM; für vorhandene RTX 2070 daher nicht lokal lauffähig laut offizieller Anforderung. MIT-Code laut Repo, TRELLIS-Unterkomponente hat eigene Bedingungen; Gewichtsbedingungen vor Produktivbetrieb einzeln klären. [Annahme] Eine gemietete 48-GB-GPU könnte genügen, sofern verfügbar und kompatibel; Kosten wurden nicht verifiziert und sind hier bewusst nicht beziffert.
 
-### 2. Wahl: SketchToCAD-Teilgenerator mit Multi-View-Assistenz
+### 2. Wahl: SketchTo3D-Teilgenerator mit Multi-View-Assistenz
 
 [Annahme] Kurzfristig für bestehende 8-GB-Umgebung: Skizze bleibt editierbar, das System generiert nur ein neues Teil und hängt es an, aber mit zwei expliziten Ansichten (Vorder- und Seitenansicht) plus Kontakt-/Tiefe-Gizmo. Zunächst darf ein lokaler Bild-zu-3D-Generator ein vollständiges Teil aus einem zusammengesetzten Referenzbild generieren; dessen Ausgabe wird beschnitten/ausgerichtet und als einzelner Knoten importiert. Das Modell erhält nie Schreibzugriff auf bestehende Teilmeshes. Diese Architektur garantiert Bestandserhaltung durch Datenmodell, nicht durch Diffusionsmodell.
 
