@@ -38,7 +38,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), promptGuard()],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   // Zweite Seite: das Skizzendorf (village.html)
-  build: { rollupOptions: { input: { main: path.resolve(__dirname, 'index.html'), village: path.resolve(__dirname, 'village.html'), lab: path.resolve(__dirname, 'lab.html'), trellis: path.resolve(__dirname, 'trellis.html'), studio: path.resolve(__dirname, 'studio.html') } } },
+  build: { rollupOptions: { input: { main: path.resolve(__dirname, 'index.html'), village: path.resolve(__dirname, 'village.html'), world: path.resolve(__dirname, 'world.html'), lab: path.resolve(__dirname, 'lab.html'), trellis: path.resolve(__dirname, 'trellis.html'), studio: path.resolve(__dirname, 'studio.html') } } },
   // Sync-Server (server/sync-server.ts) über denselben Origin – funktioniert so auch im LAN.
   server: {
     // Sync-Daten (SQLite, Blobs) ändern sich laufend – nicht beobachten.

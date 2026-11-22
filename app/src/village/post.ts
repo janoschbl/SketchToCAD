@@ -53,9 +53,15 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
   composer.addPass(new OutputPass());
   const finish = new ShaderPass(FinishShader);
   composer.addPass(finish);
+  /** 0 voll · 1 ohne Kantenglättung und Unschärfe · 2 zusätzlich ohne Bloom */
+  function setQuality(level: number) {
+    if (level >= 1) for (const t of [composer.renderTarget1, composer.renderTarget2]) { if (t.samples !== 0) { t.samples = 0; t.dispose(); } }
+    bloom.enabled = level < 2;
+  }
   return {
     composer,
     finish,
+    setQuality,
     setSize(w: number, h: number, pr: number) {
       composer.setPixelRatio(pr);
       composer.setSize(w, h);

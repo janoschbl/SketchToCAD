@@ -10,6 +10,16 @@ const MUSEUM_POSTER = '/museum/projekt.jpg';
 const MUSEUM_TITLE = 'Our first project';
 const MUSEUM_NOTE = 'From a sketch via SketchTo3D to the finished scene.'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
 
+/** Öffentliche QR-Seite (world.html): jeder Besucher bekommt seinen eigenen, nicht geteilten Canvas-Raum */
+const PUBLIC_ROOM = (() => {
+  if (!(window as unknown as { ST_PUBLIC?: boolean }).ST_PUBLIC) return '';
+  try {
+    let r = localStorage.getItem('st3-room');
+    if (!r) { r = 'p-' + Math.random().toString(36).slice(2, 12); localStorage.setItem('st3-room', r); }
+    return r;
+  } catch { return 'p-' + Math.random().toString(36).slice(2, 12); }
+})();
+
 export const CLAIM = 'Design, don’t gamble.';
 export const SUBLINE = 'Prompting is fast. Sketching is precise. SketchTo3D gives you both – straight to 3D.';
 /** Design-Varianten für den Claim im Intro, umschaltbar per ?claim=titel|hand|unten */
@@ -120,7 +130,7 @@ function spiral(width: number) {
 const TOOLS = `<p class="vtools"><span class="vtools-usd">USD</span><span class="vtools-arrow">→</span><span>Houdini</span><span>Unreal</span><span>Blender</span></p>`;
 
 
-export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onWell?: () => void; onOpenChange?: (open: boolean) => void; claim?: ClaimVariant }): VillageUI {
+export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onWell?: () => void; onOpenChange?: (open: boolean) => void; onVideoDone?: () => void; claim?: ClaimVariant }): VillageUI {
   const variant: ClaimVariant = opts.claim ?? 'titel';
 
   // ---------- Claim im Intro (Titelkarte)
@@ -252,7 +262,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   document.body.appendChild(shop);
   const frame = shop.querySelector('iframe')!;
 
-  let open: 'card' | 'shop' | null = null;
+  let open: 'card' | 'shop' | 'video' | null = null;
   const setOpen = (v: typeof open) => { open = v; opts.onOpenChange?.(!!v); };
 
   function showCard(html: string, pad = false, kind: '' | 'museum' = '') {
@@ -288,7 +298,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
   addEventListener('resize', () => { if (open === 'card') fitPad(); });
 
   function closeAll() {
-    if (full) { full.remove(); full = null; }
+    if (full) { closeVideo(); return; }
     veil.classList.remove('on');
     card.querySelector('video')?.pause();
     if (shop.classList.contains('on')) {
@@ -357,55 +367,37 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       <button class="pad-link minor" data-act="close"><span class="hw">← back to the village</span>${UNDERLINED}</button>
     </div>`;
 
-  function openMuseum() {
-    questDone('museum');
-    if (shop.classList.contains('on')) closeAll();
-    showCard(MUSEUM, true, 'museum');
-    const v = card.querySelector<HTMLVideoElement>('video')!;
-    const fig = card.querySelector<HTMLElement>('.pin')!;
-    const empty = () => { fig.classList.add('empty'); requestAnimationFrame(() => fitPad()); };
-    v.addEventListener('error', empty);
-    v.addEventListener('loadedmetadata', () => {
-      fig.classList.remove('empty'); requestAnimationFrame(() => fitPad());
-      setTimeout(() => v.play().catch(() => {}), 500);
-      // Nach kurzem Zeigen im Block: sanft auf Vollbild aufblenden
-      setTimeout(() => { if (open === 'card' && !full && !v.paused) expandVideo(v, fig); }, 2600);
-    });
-  }
-
-  // ---------- Vollbild-Überblendung fürs Museumsvideo (eigener Layer, Video läuft nahtlos weiter)
+  // ---------- Museum: Video direkt im Vollbild (kein Papier davor). Abspielen und Vollbild passieren im Klick selbst – nur so erlauben macOS/Chrome beides.
   let full: HTMLElement | null = null;
-  function collapseVideo(src?: HTMLVideoElement) {
+  function closeVideo() {
     const f = full; if (!f) return;
     full = null;
-    const fv = f.querySelector('video')!;
-    if (src) { src.currentTime = fv.currentTime; if (!fv.ended) src.play().catch(() => {}); }
     f.classList.remove('on');
-    setTimeout(() => f.remove(), 700);
+    f.querySelector('video')?.pause();
+    setTimeout(() => f.remove(), 600);
+    setOpen(null);
   }
-  function expandVideo(v: HTMLVideoElement, fig: HTMLElement) {
-    const r = fig.getBoundingClientRect();
+  function openMuseum() {
+    questDone('museum');
+    if (full) return;
+    if (shop.classList.contains('on')) closeAll();
+    veil.classList.remove('on');
+    heroShownAt = 0; collapseHero();
     const f = document.createElement('div');
     f.className = 'vfull';
-    f.innerHTML = `<video playsinline src="${MUSEUM_VIDEO}"></video><button class="vfull-x" aria-label="Close">×</button>`;
-    const fv = f.querySelector('video')!;
-    // Start: exakt über dem Block im Papier, Ziel: ganzes Fenster
-    const sx = r.width / innerWidth, sy = r.height / innerHeight;
-    fv.style.transformOrigin = '0 0';
-    fv.style.transform = `translate(${r.left}px, ${r.top}px) scale(${sx}, ${sy})`;
-    fv.currentTime = v.currentTime;
+    f.innerHTML = `<video playsinline preload="auto" poster="${MUSEUM_POSTER}" src="${MUSEUM_VIDEO}"></video><button class="vfull-x" aria-label="Close">×</button>`;
+    const v = f.querySelector('video')!;
     document.body.appendChild(f);
     full = f;
-    const go = () => {
-      fv.play().catch(() => {});
-      v.pause();
-      requestAnimationFrame(() => requestAnimationFrame(() => { f.classList.add('on'); fv.style.transform = 'translate(0,0) scale(1,1)'; }));
-    };
-    fv.addEventListener('loadeddata', go, { once: true });
-    fv.addEventListener('ended', () => collapseVideo(v));
-    f.querySelector('.vfull-x')!.addEventListener('click', () => collapseVideo(v));
-    f.addEventListener('click', (e) => { if (e.target === f) collapseVideo(v); });
-    fv.addEventListener('click', () => (fv.paused ? fv.play() : fv.pause()));
+    setOpen('video');
+    // 1) Vollbild + Abspielen sofort, noch im Klick (Nutzergeste)
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => { /* CSS-Vollbild bleibt */ });
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });   // notfalls stumm starten, damit es nie hängt
+    requestAnimationFrame(() => requestAnimationFrame(() => f.classList.add('on')));
+    v.addEventListener('ended', () => { closeVideo(); opts.onVideoDone?.(); });   // Video zu Ende → direkt zur Schlussfolie
+    f.querySelector('.vfull-x')!.addEventListener('click', closeVideo);
+    f.addEventListener('click', (e) => { if (e.target === f) closeVideo(); });
+    v.addEventListener('click', () => (v.paused ? v.play() : v.pause()));
   }
 
   function openTool(house: string) {
@@ -413,7 +405,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     heroShownAt = 0; collapseHero();
     veil.classList.remove('on');
     (shop.querySelector('.vshop-title') as HTMLElement).textContent = house === 'Workshop' ? 'Workshop' : `Workshop · ${house}`;
-    const url = `${TOOL_URL}?from=village&house=${encodeURIComponent(house)}`;
+    const url = `${TOOL_URL}?from=village&house=${encodeURIComponent(house)}${PUBLIC_ROOM ? `&room=${PUBLIC_ROOM}` : ''}`;
     // Gehostete Seiten (Base44) senden X-Frame-Options: DENY → dort kein iframe, sondern normale Navigation (Canvas hat einen Zurück-Knopf)
     if (import.meta.env.VITE_TOOL_URL) { location.href = url; return; }
     if (!frame.src.endsWith(url)) frame.src = url;
@@ -436,7 +428,10 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
     else if (act === 'tool') openTool(t.dataset.house ?? 'Workshop');
     else if (act === 'replay') { closeAll(); opts.onReplayIntro(); }
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape' && full) { e.stopPropagation(); collapseVideo(card.querySelector('video') ?? undefined); } else if (e.key === 'Escape' && open) { e.stopPropagation(); closeAll(); } }, true);
+  addEventListener('keydown', (e) => {
+    // Im Video: Leertaste / Pfeil rechts → Schlussfolie (der 3D-Viewer bekommt die Taste nicht)
+    if (full && (e.key === ' ' || e.key === 'ArrowRight' || e.key === 'PageDown')) { e.preventDefault(); e.stopImmediatePropagation(); closeVideo(); opts.onVideoDone?.(); return; }
+    if (e.key === 'Escape' && full) { e.stopPropagation(); closeVideo(); } else if (e.key === 'Escape' && open) { e.stopPropagation(); closeAll(); } }, true);
 
   return {
     setMode(mode) {

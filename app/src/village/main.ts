@@ -1,4 +1,5 @@
-import { showSlide } from './slide';
+import { showSlide, showEndSlide } from './slide';
+const PUBLIC = !!(window as unknown as { ST_PUBLIC?: boolean }).ST_PUBLIC;
 import * as THREE from 'three';
 import './village.css';
 import * as P from './props';
@@ -14,6 +15,34 @@ import { createPost } from './post';
 import { makeSticker, stickOnPrism } from './stickers';
 import { createUI, type ClaimVariant } from './ui';
 import { createDrown } from './drown';
+
+// ---------------------------------------------------------------- Neustart im selben Dokument
+// „Zurück zur Folie“ lädt die Seite nicht neu (das würde den Vollbildmodus beenden): Diese Instanz räumt sich selbst ab
+// (Listener, Overlays, WebGL) und das Modul wird neu ausgewertet → Intro startet wieder von vorn, Vollbild bleibt.
+const trackedListeners: [EventTarget, string, EventListenerOrEventListenerObject, boolean | AddEventListenerOptions | undefined][] = [];
+const origAddEventListener = EventTarget.prototype.addEventListener;
+EventTarget.prototype.addEventListener = function (this: EventTarget, type: string, fn: EventListenerOrEventListenerObject, opts?: boolean | AddEventListenerOptions) {
+  const target = this ?? window; // bloßes addEventListener(...) läuft ohne this
+  trackedListeners.push([target, type, fn, opts]);
+  return origAddEventListener.call(target, type, fn, opts);
+} as typeof EventTarget.prototype.addEventListener;
+const bodyBefore = new Set<Element>(Array.from(document.body.children));
+let disposed = false;
+function restartVillage() {
+  if (disposed) return;
+  disposed = true;
+  EventTarget.prototype.addEventListener = origAddEventListener;
+  for (const [t, type, fn, opts] of trackedListeners) t.removeEventListener(type, fn, opts);
+  for (const el of Array.from(document.body.children)) if (!bodyBefore.has(el)) el.remove();
+  document.body.classList.remove('drowning');
+  try { sfx.ctx?.close(); } catch { /* egal */ }
+  renderer.dispose();
+  renderer.forceContextLoss();
+  canvas.replaceWith(canvas.cloneNode(false)); // frischer Canvas ohne alten WebGL-Kontext
+  const u = new URL(location.href); u.searchParams.delete('slide');
+  history.replaceState(null, '', u);
+  import(/* @vite-ignore */ `${import.meta.url.split('?')[0]}?r=${Date.now()}`);
+}
 
 // ---------------------------------------------------------------- Renderer & Szene
 
@@ -475,10 +504,11 @@ function moveFp(dx: number, dz: number) {
   else if (walkable(fp.pos.x, nz)) fp.pos.z = nz;
 }
 
-let time = 0, holdIntro = new URLSearchParams(location.search).get('slide') !== '0', burst = false, twinkled = false, wummed = false, flew1 = false, dissolved = false, flew2 = false, waveR = 0;
+let time = 0, holdIntro = !PUBLIC && new URLSearchParams(location.search).get('slide') !== '0', burst = false, twinkled = false, wummed = false, flew1 = false, dissolved = false, flew2 = false, waveR = 0;
 let baseFov = 38;
+let prCap = 1.75;
 function resize() {
-  const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight), pr = Math.min(devicePixelRatio, 1.75);
+  const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight), pr = Math.min(devicePixelRatio, prCap);
   renderer.setPixelRatio(pr);
   renderer.setSize(w, h, false);
   post.setSize(w, h, pr);
@@ -503,9 +533,26 @@ const focus = V3(0, CAM0.y, 0), look = V3(0, 0, 0), fly1From = V3(0, 0, 0), fly1
 let dist = CAM0.dist, pitch = CAM0.pitch, yaw = 0.75, flash = 0;
 let manual = false;
 
+// Automatische Qualität: schwache Geräte (z. B. Laptop-GPU) schalten bei dauerhaft niedriger Bildrate erst Kantenglättung + Unschärfe, dann Bloom + Auflösung ab
+let quality = 0;
+const frameTimes: number[] = [];
+function watchPerformance(dt: number) {
+  if (document.visibilityState !== 'visible' || paused || dt >= 1 / 20 - 1e-4) { frameTimes.length = 0; return; }   // Tab im Hintergrund / Aussetzer nicht mitzählen
+  frameTimes.push(dt);
+  if (frameTimes.length < 150) return;
+  const avg = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+  frameTimes.length = 0;
+  if (avg > 1 / 44 && quality < 2) {
+    quality++;
+    post.setQuality(quality);
+    if (quality >= 2) { prCap = 1; resize(); }
+  }
+}
 function frame(fixedDt?: number) {
+  if (disposed) return;
   clock.update();
   const dt = fixedDt ?? Math.min(clock.getDelta(), 1 / 20);
+  if (fixedDt === undefined && !holdIntro) watchPerformance(dt);
   if (!holdIntro) time += dt;
   const t = time;
 
@@ -725,7 +772,7 @@ function frame(fixedDt?: number) {
   sun.target.position.copy(ground);
   const fog = scene.fog as THREE.Fog;
   fog.near = 28 + H * 1.15; fog.far = 170 + H * 2.4;
-  postU.uBlur.value = 1 - 0.8 * smooth(T_FLY1, T_SIGN, t);
+  postU.uBlur.value = quality >= 1 ? 0 : 1 - 0.8 * smooth(T_FLY1, T_SIGN, t);
 
   // ---------- Leere schwarze Welt → Meer und Himmel kommen mit der Welle, beim Wumm ganz
   seaU.uWaveR.value = burst ? waveR : 0;
@@ -836,21 +883,33 @@ const ui = createUI({
   claim: (['titel', 'hand', 'unten'].includes(claimParam ?? '') ? claimParam : 'titel') as ClaimVariant,
   onJump: jumpToWell,
   onReplayIntro: () => location.reload(),
+  onVideoDone: () => openEnd(),
   onWell: () => { wellSeen = true; },
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
     // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
-    paused = open && !!document.querySelector('.vshop.on, .vveil.on .vcard.museum');
+    paused = open && !!document.querySelector('.vshop.on, .vfull');
   },
 });
 ui.setMode('intro');
 // Präsentationsfolie zuerst; die Intro-Animation wartet dahinter und startet, sobald sie ausblendet
 if (holdIntro) showSlide().then(() => { holdIntro = false; });
-// Pfeil links zurück zur Folie (solange das Intro läuft): Seite neu laden → Folie, danach startet die Intro-Animation wieder ganz von vorn
+// Schlussfolie (Team, Fotos, QR-Code): Leertaste im Dorf oder Ende des Museumsvideos; Pfeil links/Esc zurück
+let endOpen = false;
+function openEnd() {
+  if (endOpen || PUBLIC) return;
+  endOpen = true; keys.clear(); paused = true;
+  showEndSlide().then(() => { endOpen = false; paused = false; });
+}
+addEventListener('keydown', (e) => {
+  if (e.key !== ' ' || e.repeat || holdIntro || !uiVillage || endOpen || ui.isOpen()) return;
+  e.preventDefault();
+  openEnd();
+});
+// Pfeil links zurück zur Folie (solange das Intro läuft): Szene neu aufbauen, Folie zeigen, Intro startet danach ganz von vorn – ohne Neuladen, Vollbild bleibt
 addEventListener('keydown', (e) => {
   if (e.key !== 'ArrowLeft' || holdIntro || uiVillage || e.repeat) return;
-  const u = new URL(location.href); u.searchParams.delete('slide');
-  location.replace(u.toString());
+  restartVillage();
 });
 
 // Häuser und Brunnen anklickbar
