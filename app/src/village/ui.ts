@@ -5,7 +5,7 @@
 const CONTACT_MAIL = 'contact@example.com';
 const TOOL_URL = (import.meta.env.VITE_TOOL_URL as string | undefined) ?? '/';
 // Museum: fertiges Projektvideo. Datei hier ablegen: app/public/museum/projekt.mp4 (optional Vorschaubild projekt.jpg)
-const MUSEUM_VIDEO = '/museum/projekt.mp4';
+const MUSEUM_VIDEO = '/museum/projekt-4kreise.mp4';
 const MUSEUM_POSTER = '/museum/projekt.jpg';
 const MUSEUM_TITLE = 'Our first project';
 const MUSEUM_NOTE = 'From a sketch via SketchTo3D to the finished scene.'; // Janoschs Canvas (index.html); später Werkzeug je Haus per ?tool=…
