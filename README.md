@@ -1,4 +1,4 @@
-# SketchToCAD
+# SketchTo3D
 
 > Zeichne in 2D auf einem unendlichen Canvas – ein selbst trainiertes Echtzeit-Modell baut daraus live ein 3D-Modell, das du anschließend wie in einem CAD-Programm weiterbearbeitest.
 
@@ -15,7 +15,7 @@ Heute gibt es zwei getrennte Welten:
 - **Skizzen-Tools** wie [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT-Lizenz): schnell, intuitiv, ein großer freier Canvas – aber nur 2D.
 - **CAD-Programme**: mächtig und präzise, aber mit hoher Einstiegshürde, weil man Features, Constraints und Parameter von Hand aufbauen muss.
 
-**SketchToCAD** verbindet beides. Das Vorbild für die Interaktion ist [NVIDIA Canvas](https://blogs.nvidia.com/blog/2021/06/23/studio-canvas-app) (früher GauGAN): Dort verwandeln einfache Pinselstriche in Echtzeit ein realistisches Landschaftsbild. Wir übertragen dieses Prinzip von **2D-Skizze → 2D-Bild** auf **2D-Skizze → 3D-Modell**.
+**SketchTo3D** verbindet beides. Das Vorbild für die Interaktion ist [NVIDIA Canvas](https://blogs.nvidia.com/blog/2021/06/23/studio-canvas-app) (früher GauGAN): Dort verwandeln einfache Pinselstriche in Echtzeit ein realistisches Landschaftsbild. Wir übertragen dieses Prinzip von **2D-Skizze → 2D-Bild** auf **2D-Skizze → 3D-Modell**.
 
 ### Kernablauf
 
@@ -36,7 +36,7 @@ Heute gibt es zwei getrennte Welten:
 
 ### Abgrenzung
 
-| | Excalidraw | NVIDIA Canvas | Klassisches CAD | **SketchToCAD** |
+| | Excalidraw | NVIDIA Canvas | Klassisches CAD | **SketchTo3D** |
 |---|---|---|---|---|
 | Freier Skizzen-Canvas | ✅ | ✅ (Pinsel) | ❌ | ✅ |
 | KI-Echtzeit-Feedback | ❌ | ✅ (2D-Bild) | ❌ | ✅ (3D-Modell) |
@@ -47,7 +47,7 @@ Heute gibt es zwei getrennte Welten:
 
 [Mule Create](https://github.com/felixbfx/MuleCreate) ist ein verwandtes, aber anderes Produkt. Die folgende Einordnung stammt aus einer Code-Analyse des Repos (Stand der Recherche, Alpha-Version).
 
-| | Mule Create | SketchToCAD |
+| | Mule Create | SketchTo3D |
 |---|---|---|
 | Zeichenfläche | 3D-Viewport: Striche auf Ebenen/Flächen im Raum | Großer 2D-Canvas mit Toolpalette (Excalidraw-artig) |
 | KI | Externes Agenten-LLM baut nach dem Export (Sketch Brief) in Blender/Houdini nach | Eigenes, kleines Modell generiert live im Editor |
@@ -59,7 +59,7 @@ Heute gibt es zwei getrennte Welten:
 **Technischer Befund zu Mule:** Python-Anwendung mit ca. 50.000 Zeilen Code, Qt-Oberfläche, eigener ModernGL-Renderer, Szenen als JSON (`.mule`), USD-Export und ein lokaler MCP-Server. Es gibt keine ML-Inferenz im Projekt und keinen 2D-Infinite-Canvas als Hauptfläche. Live-Updates, stabile Teile-IDs und die Skizze-Modell-Verknüpfung müssten komplett neu gebaut werden.
 
 **Kann man Mule als Basis nehmen?** Die Analyse empfiehlt: **eher nein, als Referenz ja.**
-- Die **GPL-3.0** würde jedes abgeleitete, verteilte Produkt ebenfalls unter GPL-3.0 stellen (Quellcode offenlegen). Das ist nur dann ok, wenn SketchToCAD ohnehin Open Source unter GPL sein soll. Für eine kommerzielle Nutzung bitte rechtlich prüfen lassen.
+- Die **GPL-3.0** würde jedes abgeleitete, verteilte Produkt ebenfalls unter GPL-3.0 stellen (Quellcode offenlegen). Das ist nur dann ok, wenn SketchTo3D ohnehin Open Source unter GPL sein soll. Für eine kommerzielle Nutzung bitte rechtlich prüfen lassen.
 - Die **Architektur passt nicht**: Desktop-Qt statt Web, 3D-Zeichnen statt 2D-Canvas, Handoff an externe Agenten statt Live-Inferenz.
 - **Sinnvoll zu übernehmen sind Ideen, nicht Code:** Brief-Export für KI-Agenten, USD als Austauschformat, MCP-Schnittstelle zum Steuern per Agent, Referenzbilder/Notizen am Objekt.
 - **Empfohlener Weg:** neue Web-App mit Excalidraw (MIT) oder tldraw (Lizenz prüfen) für den Canvas, three.js für die 3D-Ansicht und ein separater Inferenz-Dienst für das eigene Modell.

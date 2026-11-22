@@ -1,0 +1,15 @@
+// Base44 Project Configuration
+// JSONC enables inline documentation and discoverability directly in config files.
+// Commented-out properties show available options you can enable.
+
+{
+  "name": "sketchto3d",
+
+  "visibility": "public",
+  "site": {
+    "buildCommand": "VITE_TOOL_URL=/canvas.html npx vite build && mv dist/index.html dist/canvas.html && cp dist/village.html dist/index.html",
+    "outputDirectory": "./dist",
+    "installCommand": "bun install"
+  }
+
+}

@@ -1,0 +1,88 @@
+INFO:     Started server process [147794]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8790 (Press CTRL+C to quit)
+INFO:     127.0.0.1:37758 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37760 - "POST /sketch2img HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48674 - "POST /img2three HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49186 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49184 - "GET /classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49192 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49198 - "GET /files/20261121-114836-39c5/sketch.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36972 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36960 - "GET /classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36978 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36988 - "GET /files/20261121-114836-39c5/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [147794]
+INFO:     Started server process [151763]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8790 (Press CTRL+C to quit)
+INFO:     127.0.0.1:40766 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40782 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40774 - "GET /classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40786 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40790 - "GET /files/20261121-114836-39c5/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:37224 - "GET /classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37230 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37232 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37244 - "GET /files/20261121-114836-39c5/sketch.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40198 - "POST /sketch2img HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40210 - "GET /files/20261121-115753-46ef/img0.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40202 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40214 - "GET /files/20261121-115753-46ef/img1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40218 - "GET /files/20261121-115753-46ef/img2.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40234 - "GET /files/20261121-115753-46ef/img3.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40238 - "GET /files/20261121-115753-46ef/sketch.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39968 - "POST /sketch2img HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42904 - "GET /files/20261121-115905-1d54/img0.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42920 - "GET /files/20261121-115905-1d54/img1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42924 - "GET /files/20261121-115905-1d54/img2.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42898 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42938 - "GET /files/20261121-115905-1d54/img3.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42948 - "GET /files/20261121-115905-1d54/sketch.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53968 - "POST /rate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53984 - "POST /img2three HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38626 - "GET /files/20261121-115905-1d54/img2_s0_pre.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38630 - "GET /files/20261121-115905-1d54/img2_s0.glb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44968 - "POST /sketch2img HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57334 - "GET /files/20261121-120056-4134/img0.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57346 - "GET /files/20261121-120056-4134/img1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57354 - "GET /files/20261121-120056-4134/img2.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57324 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57370 - "GET /files/20261121-120056-4134/img3.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57376 - "GET /files/20261121-120056-4134/sketch.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56720 - "POST /sketch2img HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34066 - "GET /files/20261121-120118-b30b/img0.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34076 - "GET /files/20261121-120118-b30b/img1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34092 - "GET /files/20261121-120118-b30b/img2.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34096 - "GET /files/20261121-120118-b30b/img3.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34052 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34098 - "GET /files/20261121-120118-b30b/sketch.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33436 - "POST /sketch2img HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46402 - "GET /files/20261121-120250-3920/img3.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46386 - "GET /files/20261121-120250-3920/img2.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46370 - "GET /files/20261121-120250-3920/img1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46360 - "GET /files/20261121-120250-3920/img0.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46358 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46404 - "GET /files/20261121-120250-3920/sketch.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35484 - "POST /img2three HTTP/1.1" 429 Too Many Requests
+INFO:     127.0.0.1:51390 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51388 - "GET /classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51396 - "GET /history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51404 - "GET /files/20261121-120250-3920/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51432 - "GET /files/20261121-115753-46ef/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51416 - "GET /files/20261121-120056-4134/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51444 - "GET /files/20261121-115905-1d54/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51434 - "GET /files/20261121-114836-39c5/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51442 - "GET /files/20261121-120118-b30b/sketch.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:58802 - "GET /classes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58806 - "GET /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58812 - "GET /history HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [151763]

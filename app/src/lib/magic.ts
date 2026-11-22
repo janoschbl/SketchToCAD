@@ -41,7 +41,7 @@ export async function generateMesh(png: Blob, n: number, onProgress: (done: numb
       fd.append('seed', String(i + 1));
       fd.append('temperature', '0.5');
       const r = await fetch('/mesh/generate', { method: 'POST', body: fd, signal });
-      if (!r.ok) throw new Error(r.status === 502 ? 'MeshPad läuft gerade nicht auf dem Heim-PC (Server gestoppt oder Tailscale getrennt)' : r.status === 504 ? 'MeshPad antwortet nicht (Zeitüberschreitung)' : `MeshPad-Fehler ${r.status}`);
+      if (!r.ok) throw new Error(r.status === 502 ? 'MeshPad is not running on the home PC (server stopped or Tailscale disconnected)' : r.status === 504 ? 'MeshPad is not responding (timeout)' : `MeshPad-Fehler ${r.status}`);
       const m = parseObj((await r.json()).obj as string);
       if (!best || m.score < best.score) best = m;
     } catch (e) {
@@ -50,6 +50,6 @@ export async function generateMesh(png: Blob, n: number, onProgress: (done: numb
       if (!best && i === 0 && e instanceof TypeError) break; // Netzwerkfehler: gar nicht erst weiter versuchen
     }
   }
-  if (!best || !isFinite(best.score)) throw lastErr ?? new Error('MeshPad hat kein brauchbares Mesh erzeugt');
+  if (!best || !isFinite(best.score)) throw lastErr ?? new Error('MeshPad did not produce a usable mesh');
   return best;
 }

@@ -11,3 +11,5 @@ pygltflib
 pytest
 httpx
 pillow>=10.1
+python-dotenv
+scipy

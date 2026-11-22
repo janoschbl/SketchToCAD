@@ -109,6 +109,65 @@ export function cottage(o: { wall: string; roof: string; w?: number; d?: number;
   return g;
 }
 
+/** Schriftzug als Textur (für Fries/Schilder) */
+function textPlate(text: string, w: number, h: number, bg: string, fg: string, font = '700 88px Georgia, serif') {
+  const cv = document.createElement('canvas');
+  cv.width = 1024; cv.height = Math.round(1024 * (h / w));
+  const c = cv.getContext('2d')!;
+  c.fillStyle = bg; c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = fg; c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.letterSpacing = '24px';
+  c.fillText(text, cv.width / 2, cv.height / 2 + 4);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, flatShading: true });
+}
+
+/** Holzschild mit Schrift (bleibt unverschmolzen, damit die Textur erhalten bleibt) */
+function sign(g: THREE.Group, text: string, w: number, h: number, x: number, y: number, z: number, ry = 0, bg = '#7a4b33', fg = '#f6e6c4', font = '800 120px Georgia, serif') {
+  const m = add(g, B(w, h, 0.06), textPlate(text, w, h, bg, fg, font), x, y, z, 0, ry);
+  m.userData.keep = true; m.userData.noInk = true;
+  return m;
+}
+/** Wagenrad (an die Wand gelehnt) */
+function wheel(g: THREE.Group, x: number, y: number, z: number, ry: number, r = 0.42) {
+  const w = new THREE.Group();
+  const wood = M(PAL.wood);
+  add(w, new THREE.TorusGeometry(r, 0.05, 5, 14), wood, 0, 0, 0);
+  for (let i = 0; i < 6; i++) add(w, B(0.04, r * 2, 0.04), wood, 0, 0, 0, 0, 0, (i * Math.PI) / 6);
+  add(w, C(0.08, 0.08, 0.1, 8), M(PAL.woodDark), 0, 0, 0, Math.PI / 2);
+  w.position.set(x, y, z); w.rotation.set(-0.12, ry, 0);
+  g.add(w);
+}
+
+/** Museum (Heimatmuseum): Fachwerkhaus mit Glockentürmchen (Dachreiter), Schaufenster mit Exponat, Ausleger-Schild */
+export function museumHeimat() {
+  const g = cottage({ wall: '#f4e4c6', roof: '#8e3f33', w: 3.4, d: 3.0, h: 2.2 });
+  const top = 0.35 + 2.2, rh = 3.4 * 0.42;
+  // Fachwerk-Streben auf der Front
+  const wood = M(PAL.woodDark);
+  add(g, B(3.4, 0.12, 0.06), wood, 0, 0.35 + 1.62, 1.53);                       // Riegel über den Fenstern
+  for (const x of [-0.62, 0.62]) add(g, B(0.12, 2.2, 0.06), wood, x, 0.35 + 1.1, 1.53);   // Ständer neben der Tür
+  for (const sx of [-1, 1]) add(g, B(0.1, 0.78, 0.06), wood, 0, 0.35 + 1.92, 1.53, 0, 0, sx * 0.75); // Andreaskreuz über der Tür
+  // Dachreiter mit Glocke
+  add(g, B(0.55, 0.55, 0.55), M('#f4e4c6'), 0, top + rh + 0.2, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(g, B(0.08, 0.55, 0.08), wood, sx * 0.26, top + rh + 0.2, sz * 0.26);
+  add(g, B(0.2, 0.28, 0.6), GLOW(), 0, top + rh + 0.24, 0).castShadow = false;
+  add(g, new THREE.ConeGeometry(0.5, 0.7, 4).rotateY(Math.PI / 4), M('#8e3f33'), 0, top + rh + 0.82, 0);
+  add(g, new THREE.SphereGeometry(0.07, 6, 4), M('#e0b04a'), 0, top + rh + 1.22, 0);
+  // Großes Schild oben im Giebel – schon von der Ankunft aus lesbar
+  add(g, B(1.9, 0.5, 0.08), wood, 0, top + 0.22, 1.66);
+  sign(g, 'MUSEUM', 1.78, 0.4, 0, top + 0.22, 1.72, 0, '#f4e4c6', '#5a2a1e', '800 170px Georgia, serif');
+  // Schaufenster mit Exponat (Sockel + goldene Figur)
+  add(g, B(0.92, 0.95, 0.05), M('#ffd796', '#ffb060', 0.55), -1.1, 0.35 + 1.0, 1.62).castShadow = false;   // Schaufenster (überdeckt das Standardfenster)
+  add(g, B(1.0, 0.08, 0.12), wood, -1.1, 0.35 + 0.5, 1.66); add(g, B(1.0, 0.08, 0.12), wood, -1.1, 0.35 + 1.5, 1.66);
+  add(g, B(0.24, 0.3, 0.16), M('#efe3c9'), -1.1, 0.35 + 0.7, 1.7);
+  add(g, new THREE.IcosahedronGeometry(0.13, 0), M('#e0b04a', '#e0b04a', 0.45), -1.1, 0.35 + 0.98, 1.72);
+  wheel(g, 1.25, 0.47, 1.68, 0.1);
+  return g;
+}
+
 export function windmill() {
   const g = new THREE.Group();
   add(g, C(1.75, 1.85, 0.5, 8), M(PAL.stone), 0, 0.25, 0);
@@ -388,6 +447,7 @@ const FONT: Record<string, string[]> = {
   H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
   O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
   A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  '3': ['####.', '....#', '....#', '.###.', '....#', '....#', '####.'],
   D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
 };
 

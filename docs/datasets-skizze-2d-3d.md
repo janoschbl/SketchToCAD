@@ -69,3 +69,19 @@ Alle Links geöffnet (HTTP 200); Zahlen aus Suchzusammenfassungen. Wichtig: **ke
 | Synthetic-Mythical-Creatures | klein; Seite geöffnet, Inhalt nicht gelesen | Fabelwesen | Lizenz ungeprüft | <https://huggingface.co/datasets/ThomasTheMaker/Synthetic-Mythical-Creatures> |
 
 **Fazit:** Für Fabelwesen, Tiere und Pflanzen in großem Maßstab ist Objaverse (und TexVerse) die einzige realistische Quelle; es gibt keinen speziellen Fabelwesen-Datensatz in dieser Größe. Spezialsätze (3D-Fauna, TreeNet3D, Animal3D) sind klein oder nur für eine Gruppe. Vorsicht: Objaverse enthält viele Scans/Massenuploads – vorher filtern (siehe Warnung in `docs/objaverse-kategorien.md`).
+
+## F. „Passender“ Datensatz mit 2D-Darstellungen zu 3D (Nachtrag, Suche 2026-11-21)
+
+Ergebnis: Es gibt **keinen** fertigen großen Satz mit Skizze + 3D für Tiere/Pflanzen/Fabelwesen. Beste Bausteine (Links geöffnet, Details aus Suchzusammenfassungen):
+
+| Zweck | Datensatz | Umfang | Link |
+|---|---|---|---|
+| 2D-Ansichten + Normalen + Tiefe zu Objaverse | GObjaverse | ~280k Objekte, je Ansicht RGB/Albedo/Normalen+Tiefe/Kamera | <https://aigc3d.github.io/gobjaverse> |
+| dito, hochwertige Teilmenge | Objaverse-Rand6View | 6 Ansichten, 1024², RGB/Tiefe/Normalen/Kamera, MIT | <https://huggingface.co/datasets/caporizzi/Objaverse-Rand6View> |
+| Echte Skizzen zu Tieren (Test) | SketchANIMAR | 711 3D-Tiere, 140 Skizzen (Amateur, halbrealistisch …) | <https://arxiv.org/abs/2304.05731> |
+| Linienzeichnungen über 16 Kategorien | SketchZooms | ~10.000 Modelle, ~538.000 Bilder (Verfügbarkeit des Downloads nicht geprüft) | <https://arxiv.org/abs/1912.05019> |
+| Skizze + Bild + Text + 3D (ShapeNet) | Sketch3D / ShapeNet-Sketch3D | Kantenbilder aus Renderings | <https://arxiv.org/abs/2404.01843> |
+| Methode ohne gepaarte Daten | Doodle Your 3D | Teil-basierte Darstellung, keine Skizze↔3D-Paare nötig | <https://arxiv.org/abs/2312.04043> |
+| Objaverse-Teilmenge mit Skizzen im Training | SketchDream | 150k Objaverse-Objekte × 24 Bilder; kein veröffentlichter Skizzensatz erkennbar | <https://arxiv.org/abs/2405.06461> |
+
+**Weg:** GObjaverse/Rand6View liefern die 2D-Karten, Skizzen daraus bzw. mit `sketchgen` ableiten, echte Skizzen (SketchANIMAR, DifferSketching, OpenSketch) nur für Test/Feinabstimmung.
