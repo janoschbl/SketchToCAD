@@ -400,7 +400,7 @@ canvas.addEventListener('pointerup', (e) => {
   setHover(null);
   sfx.pop(1.1);
   if (o.id === 'well') { wellSeen = true; ui.openWell(); }
-  else { visited.add(o.id); openHouse(o); }
+  else openHouse(o);
 });
 canvas.addEventListener('pointercancel', endDrag);
 
@@ -715,7 +715,7 @@ function frame(fixedDt?: number) {
         const n = Math.max(1, Math.hypot(kx, kz));
         const fx = -Math.sin(fp.yaw), fz = -Math.cos(fp.yaw), rx = Math.cos(fp.yaw), rz = -Math.sin(fp.yaw);
         moveFp(((fx * kz + rx * kx) / n) * speed, ((fz * kz + rz * kx) / n) * speed);
-        if (Math.hypot(fp.pos.x - PLAZA_POS.x, fp.pos.z - PLAZA_POS.z) > 2.5) { walkDone = true; ui.noteDone('walk'); }
+        if (Math.hypot(fp.pos.x - PLAZA_POS.x, fp.pos.z - PLAZA_POS.z) > 2.5) ui.noteDone('walk');
         fp.bob += speed * 2.6;
         if (deepWater(fp.pos.x, fp.pos.z)) { keys.clear(); setHover(null); drown.start(); }
       }
@@ -749,7 +749,6 @@ function frame(fixedDt?: number) {
   if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
   if (t >= T_FP + 0.4 && dash.t < 0) { ui.showGuide(); }
   updateGuide(t, dt);
-  updateWalkSpot(t);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(look);
   camera.updateMatrixWorld();
@@ -886,7 +885,7 @@ const ui = createUI({
   onReplayIntro: () => location.reload(),
   onTeam: openEnd,
   onWell: () => { wellSeen = true; },
-  onMuseum: () => { visited.add(museum.id); },
+  onMuseum: () => { museumSeen = true; },
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
     // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
@@ -942,14 +941,13 @@ function setHover(o: SketchObj | null, x = 0, y = 0) {
   }
   ui.showHover(o ? (o.id === 'well' ? 'Well · How it works' : o.label === 'Museum' ? 'Museum · Watch the demo' : o.label === 'Town Hall' ? 'Town Hall · Meet the team' : `${o.label} · Workshop`) : null, x, y);
 }
-// Hinweis über dem Brunnen nach der Landung, bis man ihn einmal geöffnet hat
 let wellSeen = false;
-// Wegweiser: Hängeschild am Brunnen, Aufsteller vor dem Museum, 3D-Pfeil als Quest-Guide (erst Brunnen, dann Museum)
+let museumSeen = false;
+// Wegweiser: Hängeschild am Brunnen, Aufsteller vor dem Museum und Quest-Pfeil
 const museum = objs.find((o) => o.label === 'Museum')!;
-const visited = new Set<string>();
 const wSign = wellSign(touchUI);
 wSign.position.add(well.center);
-const mSign = museumSign();
+const mSign = museumSign(touchUI);
 {
   // vor die Museumstür, leicht nach rechts versetzt, damit die Tür frei bleibt
   const h = houses.find((x) => x.label === 'Museum')!;
@@ -962,7 +960,6 @@ wSign.visible = mSign.visible = false;
 scene.add(wSign, mSign);
 const arrow = questArrow();
 scene.add(arrow);
-const questTarget = V3(0, 0, 0);
 function updateGuide(t: number, dt: number) {
   const dist = Math.hypot(fp.pos.x - well.center.x, fp.pos.z - well.center.z);
   ui.setFar(free && dash.t < 0 && dist > 9);
@@ -975,50 +972,12 @@ function updateGuide(t: number, dt: number) {
     wSign.rotation.y += d * (1 - Math.exp(-dt * 2.5));
     wSign.rotation.z = Math.sin(t * 1.3) * 0.04;
   }
-  // Quest: erst der Brunnen, dann das Museum, danach kein Pfeil mehr
-  const active = free && walkDone && dash.t < 0 && !ui.isOpen() && !drown.active;
+  // Quest: direkt nach der Landung zum Museum, dann zum Brunnen
+  const active = free && dash.t < 0 && !ui.isOpen() && !drown.active;
   let target: THREE.Vector3 | null = null;
-  if (active && !wellSeen) target = questTarget.set(well.center.x, 3.35, well.center.z);
-  else if (active && !visited.has(museum.id)) target = questTarget.set(mSign.position.x, 1.35, mSign.position.z);
+  if (active && !museumSeen) target = mSign.position;
+  else if (active && !wellSeen) target = well.center;
   updateArrow(arrow, camera, target, t, dt);
-}
-
-// Bodenmarkierung „hier laufen“: pulsierender Ring vor dem Startpunkt, verschwindet, sobald man hineinläuft (oder weit genug gelaufen ist)
-let walkDone = false;
-const WALK_SPOT = V3(1.9, 0.07, 1.0);
-const walkRing = new THREE.Group();
-{
-  const mat = (o: number) => new THREE.MeshBasicMaterial({ color: '#fff4dc', transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide, fog: false });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.72, 48), mat(0.95));
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.62, 48), mat(0.22));
-  const pulse = new THREE.Mesh(new THREE.RingGeometry(0.72, 0.8, 48), mat(0.5));
-  pulse.name = 'pulse';
-  walkRing.add(ring, disc, pulse);
-  walkRing.rotation.x = -Math.PI / 2;
-  walkRing.position.copy(WALK_SPOT);
-  walkRing.visible = false;
-  scene.add(walkRing);
-}
-const walkLabel = document.createElement('div');
-walkLabel.className = 'vwalk';
-walkLabel.textContent = touchUI ? 'Walk here with the joystick' : 'Walk here · W A S D';
-document.body.appendChild(walkLabel);
-const walkPos = V3(0, 0, 0);
-function updateWalkSpot(t: number) {
-  if (!walkDone && free && Math.hypot(fp.pos.x - WALK_SPOT.x, fp.pos.z - WALK_SPOT.z) < 1.0) { walkDone = true; ui.noteDone('walk'); }
-  if (walkDone) document.body.classList.add('walked');
-  const show = free && !walkDone && dash.t < 0 && !ui.isOpen() && !drown.active;
-  walkRing.visible = show;
-  if (show) {
-    const k = (t * 0.9) % 1;
-    const p = walkRing.getObjectByName('pulse') as THREE.Mesh;
-    p.scale.setScalar(1 + k * 0.7);
-    (p.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - k);
-    walkPos.set(WALK_SPOT.x, 0.7, WALK_SPOT.z).project(camera);
-    const on = walkPos.z < 1 && Math.abs(walkPos.x) < 0.92 && Math.abs(walkPos.y) < 0.9;
-    walkLabel.classList.toggle('on', on);
-    if (on) walkLabel.style.transform = `translate(${((walkPos.x + 1) / 2) * innerWidth}px, ${((1 - walkPos.y) / 2) * innerHeight}px)`;
-  } else walkLabel.classList.remove('on');
 }
 
 let hoverQueued = false;

@@ -64,9 +64,9 @@ export function wellSign(touch: boolean) {
 }
 
 /** Aufsteller (Kundenstopper) vor der Museumstür */
-export function museumSign() {
+export function museumSign(touch: boolean) {
   const g = new THREE.Group();
-  const lines = [{ text: 'Demo inside', size: 80 }, { text: 'Click here', size: 96, color: ACCENT }];
+  const lines = [{ text: 'Demo inside', size: 80 }, { text: touch ? 'Tap here' : 'Click here', size: 96, color: ACCENT }];
   const front = board(lines, 0.86, 0.7), back = board(lines, 0.86, 0.7);
   front.position.set(0, 0.7, 0.18); front.rotation.x = -0.24;
   back.position.set(0, 0.7, -0.18); back.rotation.set(0.24, Math.PI, 0);
@@ -97,7 +97,7 @@ export function questArrow() {
 const tmpQ = new THREE.Quaternion(), tilt = new THREE.Quaternion(), tmpE = new THREE.Euler(0, 0, 0, 'YXZ'), fwd = new THREE.Vector3(), right = new THREE.Vector3(), want = new THREE.Vector3();
 
 /**
- * Pfeil pro Frame bewegen: 2,4 m vor dir, unter Augenhöhe, zeigt in Richtung Ziel.
+ * Pfeil pro Frame bewegen: knapp über dem Boden vor dir, zeigt in Richtung Ziel.
  * Nah am Ziel (< 4,5 m) schrumpft er weg, dort zeigt das Schild, wo man klicken kann.
  */
 export function updateArrow(arrow: THREE.Group, camera: THREE.Camera, target: THREE.Vector3 | null, t: number, dt: number) {
@@ -105,7 +105,7 @@ export function updateArrow(arrow: THREE.Group, camera: THREE.Camera, target: TH
   camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
   const dx = target.x - camera.position.x, dz = target.z - camera.position.z, dist = Math.hypot(dx, dz);
   const near = dist < 4.5;
-  want.copy(camera.position).addScaledVector(fwd, 2.4); want.y = camera.position.y - 0.8 + Math.sin(t * 2.4) * 0.03;
+  want.copy(camera.position).addScaledVector(fwd, 2.7); want.y = 0.2 + Math.sin(t * 2.4) * 0.03;
   tmpE.set(0, Math.atan2(-dx, -dz), 0);         // zeigt flach zum Ziel …
   tmpQ.setFromEuler(tmpE);
   // … und kippt mit der Oberseite zu dir, damit die Pfeilform immer gut lesbar ist

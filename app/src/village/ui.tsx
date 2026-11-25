@@ -124,7 +124,7 @@ function ModelDemo() {
 
 function WellCard({ go }: { go: Go }) {
   return (
-    <div className="vwell">
+    <div className="vcard-split">
       <ModelDemo />
       <div>
         <p className="vcard-wip">Still a work in progress.</p>
@@ -158,25 +158,27 @@ const TEAM = [
 /** About und Kontakt in einem: wer wir sind, was die Idee ist, Stand, und dass wir Jobs suchen */
 function AboutCard({ go }: { go: Go }) {
   return (
-    <>
+    <div className="vcard-split">
       <figure className="vteam">
         <img src="/endslide/team1.jpg" alt="Martin, Mariia and Janosch with laptops at the hackathon table" width={1000} height={750} />
         <figcaption>Hackathon weekend at STARTPLATZ</figcaption>
       </figure>
-      <Dialog.Title asChild><h2>Hi, we’re Martin, Mariia and Janosch.</h2></Dialog.Title>
-      <Dialog.Description>We built SketchTo3D over a weekend at a hackathon at <a href="https://www.startplatz.de/" target="_blank" rel="noopener">STARTPLATZ</a>. A weekend turned out to be slightly too short, so we just kept building.</Dialog.Description>
-      <p>The idea: you sketch something and get a finished 3D model as USD, ready for film and post-production. Right now it is good for planning and brainstorming. Later it should work end to end.</p>
-      <p>It is not finished yet. The demo shows where it is at.</p>
-      <div className="vcard-actions vcard-actions-top">
-        <CTA act={() => go(DEMO ? 'museum' : 'tool')}>{DEMO ? 'Watch the demo' : 'Create a 3D model'}</CTA>
+      <div>
+        <Dialog.Title asChild><h2>Hi, we’re Martin, Mariia and Janosch.</h2></Dialog.Title>
+        <Dialog.Description>We built SketchTo3D over a weekend at a hackathon at <a href="https://www.startplatz.de/" target="_blank" rel="noopener">STARTPLATZ</a>. A weekend turned out to be slightly too short, so we just kept building.</Dialog.Description>
+        <p>The idea: you sketch something and get a finished 3D model as USD, ready for film and post-production. Right now it is good for planning and brainstorming. Later it should work end to end.</p>
+        <p>It is not finished yet. The demo shows where it is at.</p>
+        <div className="vcard-actions vcard-actions-top">
+          <CTA act={() => go(DEMO ? 'museum' : 'tool')}>{DEMO ? 'Watch the demo' : 'Create a 3D model'}</CTA>
+        </div>
+        <h3>Contact</h3>
+        <p>Mariia and I are looking for jobs in software development. If you need something built in this direction, or just want to talk about it, write us.</p>
+        <MailCopy />
+        <ul className="vlinks">
+          {TEAM.map((m) => <li key={m.url}><a href={m.url} target="_blank" rel="noopener">{m.name}<span className="vlinks-tag">LinkedIn</span></a></li>)}
+        </ul>
       </div>
-      <h3>Contact</h3>
-      <p>Mariia and I are looking for jobs in software development. If you need something built in this direction, or just want to talk about it, write us.</p>
-      <MailCopy />
-      <ul className="vlinks">
-        {TEAM.map((m) => <li key={m.url}><a href={m.url} target="_blank" rel="noopener">{m.name}<span className="vlinks-tag">LinkedIn</span></a></li>)}
-      </ul>
-    </>
+    </div>
   );
 }
 
@@ -307,7 +309,7 @@ function Overlay({ store, go, close, onJump }: { store: Store; go: Go; close: ()
       <Dialog.Root open={card !== null} onOpenChange={(o) => { if (!o) close(); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="vveil" />
-          <Dialog.Content className={card === 'museum' ? 'vdialog vdialog-museum' : card === 'well' ? 'vdialog vcard vcard-wide' : 'vdialog vcard'} aria-describedby={undefined}
+          <Dialog.Content className={card === 'museum' ? 'vdialog vdialog-museum' : card === 'well' || card === 'about' ? 'vdialog vcard vcard-wide' : 'vdialog vcard'} aria-describedby={undefined}
             // Fokus auf die Karte selbst statt auf den Schließen-Knopf (sonst leuchtet beim Öffnen gleich der Fokusring)
             onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).focus({ preventScroll: true }); }}>
             {card === 'well' && <WellCard go={go} />}
@@ -396,7 +398,7 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       setTimeout(() => store.set({ guide: false }), 20000);
     },
     noteDone(k) {
-      if (!guideShown) return;
+      if (!guideShown || done.has(k)) return;
       done.add(k);
       if (done.has('walk') && done.has('look')) store.set({ guide: false });
     },
