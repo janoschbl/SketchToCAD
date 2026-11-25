@@ -83,6 +83,7 @@ const RING = [
   { a: 1.98, wall: '#f6e2c4', roof: '#9b4f5f', w: 3.0, d: 2.7, h: 1.9, label: 'Rose Cottage' },
   { a: 2.6, wall: '#f4dcc0', roof: '#d39a3a', w: 3.3, label: 'Museum' },          // direkt hinter dem Brunnen (rechts, frei sichtbar) – Projektvideo
   { a: 3.62, wall: '#eed7b8', roof: '#5d7f4a', w: 3.3, label: 'Herb House' },
+  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Town Hall' },
   { a: -1.0, wall: '#f0d8b6', roof: '#6a5a9a', w: 3.2, label: 'Lilac House' },
   { a: -0.42, wall: '#f3dcb2', roof: '#c26a3a', w: 3.0, label: 'West Gatehouse' },
 ];
@@ -894,8 +895,8 @@ const ray = new THREE.Raycaster();
 ray.far = 45;
 const ndc = new THREE.Vector2();
 // Öffentliche Demo: nur Brunnen (So geht's) und Museum (Demo).
-// Lokal mit KI öffnet jedes Haus die Werkstatt.
-const clickable = (o: SketchObj) => o.id === 'well' || (o.id.startsWith('house') && (!DEMO || o.label === 'Museum'));
+// Lokal mit KI öffnen die anderen Häuser die Werkstatt. Das Rathaus bleibt Kulisse.
+const clickable = (o: SketchObj) => o.id === 'well' || (o.id.startsWith('house') && o.label !== 'Town Hall' && (!DEMO || o.label === 'Museum'));
 function pick(x: number, y: number): SketchObj | null {
   ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);

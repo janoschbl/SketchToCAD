@@ -62,41 +62,61 @@ function drawSketch() {
   };
 }
 
-// Each wing takes a different patch of the same image. Cut along the forewing seam
-// and add spanwise camber so the shape catches light as it folds.
-function wingGeometry(side: number, fore: boolean) {
-  const g = new THREE.PlaneGeometry(1, 1, 24, 18);
+// Fore- and hindwing share a surface so bending never opens a gap along their seam.
+function wingGeometry(side: number) {
+  const g = new THREE.PlaneGeometry(1, 1, 28, 36);
   const pos = g.attributes.position, uv = g.attributes.uv;
   const half = IMAGE_SIZE / 2;
-  const rootY = fore ? 0.065 : 0.035;
   for (let i = 0; i < pos.count; i++) {
     const span = pos.getX(i) * side + 0.5;
-    const chord = pos.getY(i) + 0.5;
-    const seam = THREE.MathUtils.lerp(0.065, -0.04, span);
-    const x = side * THREE.MathUtils.lerp(fore ? 0.057 + chord * 0.36 : 0.09 - chord * 0.033, half, span);
-    const y = fore ? THREE.MathUtils.lerp(seam - 0.011, half, chord) : THREE.MathUtils.lerp(-half, seam + 0.006, chord);
-    const z = 0.022 * Math.sin(Math.PI * span) + 0.05 * span ** 2 * (fore ? chord : 1 - chord);
-    pos.setXYZ(i, x, y - rootY, z - (fore ? 0 : 0.012));
+    const y = pos.getY(i) * IMAGE_SIZE;
+    // Exclude the body and antennae painted on the source image.
+    const root = 0.058 + 0.34 * smooth(0.29, 0.97, y);
+    const x = side * THREE.MathUtils.lerp(root, half, span);
+    pos.setXYZ(i, x, y, 0);
     uv.setXY(i, x / IMAGE_SIZE + 0.5, y / IMAGE_SIZE + 0.5);
   }
-  g.computeVertexNormals();
   return g;
 }
 
 function makeButterfly(texture: THREE.Texture) {
   const group = new THREE.Group();
-  const flex = { value: new THREE.Vector2() };
+  const motion = { value: new THREE.Vector3() };
   const wingMaterial = new THREE.MeshStandardMaterial({
     map: texture, side: THREE.DoubleSide, alphaTest: 0.44, alphaToCoverage: true, roughness: 0.53, metalness: 0.04,
   });
   wingMaterial.onBeforeCompile = (shader) => {
-    shader.uniforms.uWingFlex = flex;
-    // The tips and trailing edges follow the stroke a little after the wing roots.
-    shader.vertexShader = 'uniform vec2 uWingFlex;\n' + shader.vertexShader.replace('#include <begin_vertex>', `
-      #include <begin_vertex>
-      float span = abs(2.0 * uv.x - 1.0);
-      transformed.z += span * span * (uWingFlex.x + (0.5 - uv.y) * uWingFlex.y);
-    `);
+    shader.uniforms.uWingMotion = motion;
+    shader.vertexShader = `
+      uniform vec3 uWingMotion;
+
+      vec3 flexWing(vec3 p) {
+        float span = clamp((abs(p.x) - 0.06) / 1.11, 0.0, 1.0);
+        float rear = 1.0 - smoothstep(-0.25, 0.22, p.y);
+        float phase = uWingMotion.x - 0.80 * span - 0.40 * rear;
+        float raised = max(0.0, sin(phase));
+        float cup = raised * raised * raised;
+        float load = uWingMotion.y;
+
+        float bend = load * (-0.33 * cos(phase) + 0.24 * cup);
+        float twist = span * load * (0.52 * sin(phase - 0.92) - 0.20 * cup);
+        float axis = 0.18 - 0.34 * span;
+        float chord = clamp((p.y + 0.90) / 1.88, 0.0, 1.0);
+        float camber = 4.0 * chord * (1.0 - chord) * span
+          * (0.045 * uWingMotion.z + load * (0.16 * cup - 0.09 * cos(phase)));
+
+        p.x *= 1.0 - 0.42 * bend * bend * span;
+        p.z += (p.y - axis) * sin(twist) + span * span * bend + camber;
+        p.y = axis + (p.y - axis) * cos(twist);
+        return p;
+      }
+    ` + shader.vertexShader.replace('#include <beginnormal_vertex>', `
+      #include <beginnormal_vertex>
+      vec3 flexed = flexWing(position);
+      vec3 along = flexWing(position + vec3(0.004, 0.0, 0.0)) - flexed;
+      vec3 across = flexWing(position + vec3(0.0, 0.004, 0.0)) - flexed;
+      objectNormal = normalize(cross(along, across));
+    `).replace('#include <begin_vertex>', 'vec3 transformed = flexed;');
     // Morpho wing scales lose their blue sheen underneath, without changing the silhouette.
     shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
       #include <map_fragment>
@@ -104,12 +124,12 @@ function makeButterfly(texture: THREE.Texture) {
         vec3(.32, .18, .072) * dot(diffuseColor.rgb, vec3(.3, .45, .65)), .43);
     `);
   };
-  const wings = [-1, 1].flatMap((side) => [true, false].map((fore) => {
-    const wing = new THREE.Mesh(wingGeometry(side, fore), wingMaterial);
-    wing.position.y = fore ? 0.065 : 0.035;
+  const wings = [-1, 1].map((side) => {
+    const wing = new THREE.Mesh(wingGeometry(side), wingMaterial);
+    wing.frustumCulled = false; // The vertex shader changes the wing's bounds.
     group.add(wing);
-    return { wing, fore, side };
-  }));
+    return { wing, side };
+  });
 
   const bodyMaterial = new THREE.MeshStandardMaterial({ color: '#674932', roughness: 0.81 });
   const abdomen = [new THREE.Vector2(0.004, -0.62), new THREE.Vector2(0.019, -0.55)];
@@ -141,12 +161,12 @@ function makeButterfly(texture: THREE.Texture) {
     group.add(new THREE.Mesh(new THREE.TubeGeometry(antenna, 16, 0.005, 5, false), bodyMaterial));
     oval(tip.x, tip.y, tip.z, 0.012, 0.026, 0.009, eyeMaterial);
   }
-  return { group, wings, flex: flex.value };
+  return { group, wings, motion: motion.value };
 }
 
 const flightPath = new THREE.CatmullRomCurve3([
-  [0, 0, 0], [-0.30, 0.09, 0.04], [-0.53, 0.36, -0.08], [-0.26, 0.60, -0.32],
-  [0.28, 0.56, -0.54], [0.91, 0.36, -0.81], [1.61, 0.57, -1.05], [2.85, 1.28, -1.26],
+  [0, 0, 0], [-0.07, 0.08, 0.02], [-0.09, 0.24, -0.10], [0.20, 0.46, -0.23],
+  [0.67, 0.56, -0.40], [1.15, 0.48, -0.68], [1.85, 0.65, -0.95], [3.24, 1.26, -1.28],
 ].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
 
 export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: (stage: Stage) => void, onReady: () => void, reduce: boolean) {
@@ -204,7 +224,7 @@ export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: 
 
   const heading = new THREE.Vector3(), ahead = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
   const rotation = new THREE.Matrix4(), target = new THREE.Quaternion(), bank = new THREE.Quaternion();
-  const restPose = new THREE.Quaternion(), axisY = new THREE.Vector3(0, 1, 0);
+  const restPose = new THREE.Quaternion(), axisY = new THREE.Vector3(0, 1, 0), axisX = new THREE.Vector3(1, 0, 0);
   const tilt = new THREE.Euler();
 
   function render() {
@@ -213,8 +233,8 @@ export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: 
     const relief = reduce ? 1 : smooth(MODEL_START + 0.17, TAKEOFF + 0.10, t);
     const flight = Math.max(0, t - TAKEOFF);
     const progress = clamp(flight / (FLIGHT_END - TAKEOFF), 0, 1);
-    const departing = smooth(0.15, 1.65, flight);
-    const { group, wings, flex } = butterfly;
+    const departing = smooth(0.30, 2.25, flight);
+    const { group, wings, motion } = butterfly;
 
     drawing.mesh.visible = !reduce && t > 0 && t < IMAGE_END;
     drawing.sweep.value = sweep;
@@ -227,39 +247,42 @@ export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: 
     group.visible = (reduce || t >= MODEL_START) && t < FLIGHT_END;
     shadow.visible = !reduce && t >= DRAW_END && t < FLIGHT_END;
     if (group.visible) {
-      const pathProgress = progress + 0.012 * Math.sin(progress * Math.PI * 2);
+      const pathProgress = progress - 0.05 * Math.sin(progress * Math.PI);
       flightPath.getPoint(pathProgress, group.position);
-      const burst = (1 - smooth(1.62, 1.94, flight) + smooth(2.16, 2.39, flight))
-        * (1 - smooth(3.38, 3.65, flight) + smooth(4.04, 4.37, flight));
-      const phase = 2 * Math.PI * (2.7 * flight + 0.08 * Math.sin(flight * 2.1));
-      const beat = 0.18 + burst * (0.54 * Math.sin(phase) + 0.08 * Math.sin(phase * 2 + 0.5));
-      const unfold = smooth(0, 0.62, flight);
-      const stroke = reduce ? 0.34 : THREE.MathUtils.lerp(Math.sin(relief * 2.55) * 0.34, beat, unfold);
-      flex.set(0.065 * Math.cos(phase - 0.45), 0.12 * Math.cos(phase - 0.85)).multiplyScalar(unfold * burst);
-      for (const { wing, fore, side } of wings) {
-        const follow = fore ? stroke : stroke - unfold * burst * 0.12 * Math.cos(phase) - 0.035 * relief;
-        wing.rotation.set((fore ? 1 : -1) * follow * 0.11, -side * follow, side * relief * (fore ? 0.018 : -0.04));
-      }
+      const glide = smooth(1.52, 1.90, flight) - smooth(2.21, 2.62, flight)
+        + smooth(3.51, 3.89, flight) - smooth(4.32, 4.74, flight);
+      const liftOff = smooth(0, 0.47, flight);
+      const effort = liftOff * (1 - 0.92 * glide);
+      const phase = 2 * Math.PI * (2.45 * flight + 0.07 * Math.sin(2.7 * flight));
+      const beat = Math.sin(phase);
+      const fold = reduce ? 0.29 : THREE.MathUtils.lerp(0.31 * Math.sin(relief * 2.55), 0.18 + 0.09 * glide, liftOff);
+      const stroke = fold + effort * (0.62 * beat + 0.15 * Math.max(0, beat) ** 2);
+      motion.set(phase, effort, relief);
 
       tilt.set(-0.19 * relief, -0.31 * relief, 0.13 * relief);
       restPose.setFromEuler(tilt);
       group.quaternion.copy(restPose);
+      let turn = 0;
       if (flight > 0) {
         flightPath.getTangent(pathProgress, heading);
         flightPath.getTangent(Math.min(1, pathProgress + 0.032), ahead);
-        up.set(-0.08 * Math.sin(flight * 1.7), 0.51, 1);
+        up.set(0, 0.38, 1);
         right.crossVectors(heading, up).normalize();
         up.crossVectors(right, heading);
         target.setFromRotationMatrix(rotation.makeBasis(right, heading, up));
-        const turn = ahead.cross(heading).dot(up);
-        target.multiply(bank.setFromAxisAngle(axisY, clamp(turn, -0.32, 0.32) + burst * 0.045 * Math.sin(phase)));
-        group.quaternion.slerp(target, smooth(0.18, 1.15, flight));
-        // The body lags each downstroke; small glides interrupt the wingbeat.
-        group.position.y += unfold * burst * 0.026 * Math.sin(phase - 1.2);
-        group.position.z += unfold * burst * 0.013 * Math.sin(phase - 0.8);
+        turn = clamp(ahead.cross(heading).dot(up) * 1.4, -0.35, 0.35);
+        target.multiply(bank.setFromAxisAngle(axisY, turn));
+        target.multiply(bank.setFromAxisAngle(axisX, effort * 0.10 * Math.sin(phase - 0.55)));
+        group.quaternion.slerp(target, smooth(0.12, 1.16, flight));
+        group.position.y += effort * 0.044 * Math.cos(phase - 0.45);
+        group.position.z += effort * 0.018 * Math.sin(phase - 0.9);
+      }
+      for (const { wing, side } of wings) {
+        wing.rotation.y = -side * stroke + 0.26 * turn * effort * beat;
+        wing.rotation.z = side * (0.025 * relief + 0.084 * effort * Math.sin(phase - 0.68));
       }
       group.position.y += 0.075;
-      const scale = (1 - departing * 0.44) * (1 - smooth(0.62, 1, progress) * 0.19);
+      const scale = (1 - liftOff * 0.055 - departing * 0.27) * (1 - smooth(0.62, 1, progress) * 0.23);
       group.scale.setScalar(scale);
     }
 
