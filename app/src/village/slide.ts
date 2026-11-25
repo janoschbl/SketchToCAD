@@ -6,7 +6,7 @@ export function showSlide(): Promise<void> {
   return new Promise((resolve) => {
     const s = document.createElement('section');
     s.className = 'vslide';
-    s.setAttribute('aria-label', 'SketchTo3D – team presentation');
+    s.setAttribute('aria-label', 'SketchTo3D: team presentation');
     s.innerHTML = `
       <h1 class="vslide-team">Sketch<span class="to">To</span>3D</h1>`;
     document.body.appendChild(s);
@@ -47,7 +47,7 @@ export function showSlide(): Promise<void> {
 const END_PHOTOS: [string, string][] = [
   ['team1', 'Late night hacking'],
   ['canvas', 'One canvas for everything'],
-  ['team2', 'Unicorn car – sketched, then 3D'],
+  ['team2', 'Unicorn car, sketched, then 3D'],
   ['studio', 'AI Studio: paint to inpaint'],
   ['team4', 'Team SketchTo3D'],
   ['team3', 'Butterfly in the making'],
@@ -56,7 +56,7 @@ export function showEndSlide(): Promise<void> {
   return new Promise((resolve) => {
     const s = document.createElement('section');
     s.className = 'vslide vend';
-    s.setAttribute('aria-label', 'SketchTo3D – thank you');
+    s.setAttribute('aria-label', 'SketchTo3D: thank you');
     s.innerHTML = `
       ${END_PHOTOS.map(([f, cap], i) => `<figure class="vend-ph p${i + 1}"><img src="/endslide/${f}.jpg" alt="${cap}" loading="eager"><figcaption>${cap}</figcaption></figure>`).join('')}
       <div class="vend-mid">

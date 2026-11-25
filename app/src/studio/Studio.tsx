@@ -439,7 +439,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
       const g = await api.sketch2img(await pd.png(pd.strokes, true), subject, JSON.stringify(pd.strokes), fid, s, 2);
       setGen(g);
       setPicked(null);
-      setNote(`Pick a version – it becomes the 3D model. (${g.seconds.toFixed(0)} s)`);
+      setNote(`Pick a version. It becomes the 3D model. (${g.seconds.toFixed(0)} s)`);
     });
     bump();
   }, [seed, subject, fid, run, setSelection, bump]);
@@ -453,7 +453,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
       pad.current!.strokes.forEach((s) => { s.v = 0; s.part = 'p0'; });
       await applyProject(j.project);
       view.current?.frontView();
-      setNote(`3D ready in ${j.seconds.toFixed(0)} s · ${j.project.parts.length} parts. Keep drawing, erase, select parts – or ask the AI.`);
+      setNote(`3D ready in ${j.seconds.toFixed(0)} s · ${j.project.parts.length} parts. Keep drawing, erase, select parts or ask the AI.`);
       setTool('select');
     });
   }, [gen, run, applyProject]);
@@ -577,7 +577,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
     const st = live.current, pr0 = projectRef.current;
     const t = text.trim();
     if (!t || !st) return;
-    if (!pr0) { setErr('Build a 3D model first – then describe changes here.'); return; }
+    if (!pr0) { setErr('Build a 3D model first, then describe changes here.'); return; }
     if (busyRef.current) return;
     setAiText('');
     st.push({ role: 'user', text: t });
@@ -763,7 +763,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
         <div className="flex items-center gap-2 pr-2 text-[15px] font-semibold"><IconSparkles size={18} className="text-[#7c5cff]" />AI Studio</div>
         <div className="relative">
           <button className="flex items-center gap-1.5 rounded-[12px] bg-surface px-3 py-2 shadow-raised" onClick={() => setPickerOpen((o) => !o)} disabled={!!project}
-            title={project ? 'The animal is fixed for this project – “New” to pick another' : 'Pick an animal'}>
+            title={project ? 'The animal is fixed for this project. Use “New” to pick another' : 'Pick an animal'}>
             <span className="text-ink-3">Animal:</span><b className="font-medium">{subjEn}</b>
           </button>
           {pickerOpen && !project && (
@@ -802,7 +802,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
             <ToolBtn on={tool === 'line'} onClick={() => setTool('line')} label="Line" shortcut="L"><IconLine {...icon} /></ToolBtn>
             <ToolBtn on={tool === 'rect'} onClick={() => setTool('rect')} label="Rectangle (Shift = square)" shortcut="R"><IconSquare {...icon} /></ToolBtn>
             <ToolBtn on={tool === 'ellipse'} onClick={() => setTool('ellipse')} label="Ellipse (Shift = circle)" shortcut="O"><IconCircle {...icon} /></ToolBtn>
-            <ToolBtn on={tool === 'eraser'} onClick={() => setTool('eraser')} label={project ? 'Eraser (erases in the model – also in the 3D view)' : 'Eraser'} shortcut="E"><IconEraser {...icon} /></ToolBtn>
+            <ToolBtn on={tool === 'eraser'} onClick={() => setTool('eraser')} label={project ? 'Eraser (also erases in the model and the 3D view)' : 'Eraser'} shortcut="E"><IconEraser {...icon} /></ToolBtn>
             <ToolBtn on={tool === 'select'} onClick={() => setTool('select')} label={project ? 'Select: click = part, drag = lasso, Shift = several' : 'Select (lasso around strokes)'} shortcut="V"><IconPointer {...icon} /></ToolBtn>
             <Sep />
             {preset?.radial
@@ -815,7 +815,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
               <ToolBtn on={showSketch} onClick={() => setShowSketch((x) => !x)} label="Show the original sketch">{showSketch ? <IconEye {...icon} /> : <IconEyeOff {...icon} />}</ToolBtn>
             )}
             <Sep />
-            <ToolBtn onClick={undo} label="Undo (Ctrl+Z) – on the model: undo the last change" disabled={anyBusy}><IconArrowBackUp {...icon} /></ToolBtn>
+            <ToolBtn onClick={undo} label="Undo (Ctrl+Z). On the model: undo the last change" disabled={anyBusy}><IconArrowBackUp {...icon} /></ToolBtn>
             <ToolBtn onClick={() => pad.current?.redo()} label="Redo (Ctrl+Shift+Z)"><IconArrowForwardUp {...icon} /></ToolBtn>
             <ToolBtn onClick={restart} label="New (empty sketch)"><IconTrash {...icon} /></ToolBtn>
           </WarmTooltipGroup>
@@ -823,7 +823,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
 
         <div className="flex items-center gap-2">
           {/* Live: who else is in the studio */}
-          <WarmTooltip content={peers.length ? `${peers.length + 1} people in this studio – everything syncs live` : 'Live sync on – open this room on another device to draw together'} side="bottom">
+          <WarmTooltip content={peers.length ? `${peers.length + 1} people in this studio, everything syncs live` : 'Live sync on. Open this room on another device to draw together'} side="bottom">
             <div className="flex items-center gap-2 rounded-[12px] bg-surface py-1 pr-1.5 pl-2.5 shadow-raised" data-testid="studio-live">
               <span className={`size-2 rounded-full ${ready ? 'bg-emerald-500' : 'animate-pulse bg-amber-400'}`} />
               <span className="text-[12.5px] text-ink-2">Live</span>
@@ -916,7 +916,7 @@ export default function Studio({ onClose, onPlace, projectId, sync }: {
             <canvas ref={cvRef} data-testid="pad" className={`absolute inset-0 size-full touch-none ${tool === 'select' ? 'cursor-default' : 'cursor-none'}`} />
             {!strokeCount && !project && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center text-center text-[13px] text-ink-3">
-                <div>{preset ? preset.tip : <>Draw {article} {subjLower}{mirror ? ' – mirror is on' : ''}.</>}<br />Then <b>Enter</b> or “2 versions”.</div>
+                <div>{preset ? preset.tip : <>Draw {article} {subjLower}{mirror ? ', mirror is on' : ''}.</>}<br />Then <b>Enter</b> or “2 versions”.</div>
               </div>
             )}
             {shownBusy && (

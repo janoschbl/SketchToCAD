@@ -286,6 +286,6 @@ export function buildElytraRig(meshes: T.Mesh[], duration = 0.5): FlightRig | nu
   const clip = new T.AnimationClip('flutter', duration, kt);
   return {
     root: rootG, clip, info: { span: 2 * half, bodyHalf: 0.08 * half, verts: total, meshes: skinned.length },
-    file: 'marienkaefer-flug.glb', label: 'Flight rig: shell halves lift, two translucent hind wings beat (added – the generated mesh has none), loop “flutter”',
+    file: 'marienkaefer-flug.glb', label: 'Flight rig: shell halves lift, two translucent hind wings beat (added, the generated mesh has none), loop “flutter”',
   };
 }

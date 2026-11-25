@@ -295,7 +295,7 @@ export default function App() {
     const errs = res.errors.length ? ` ${res.errors.length} step(s) failed: ${res.errors.join(' · ')}` : '';
     if (res.glb) {
       const n = res.changed.length;
-      const head = res.text || `Done – ${n} ${n === 1 ? 'part' : 'parts'} changed: ${list(res.changed)}.`;
+      const head = res.text || `Done: ${n} ${n === 1 ? 'part' : 'parts'} changed: ${list(res.changed)}.`;
       return `${head}${errs}${stats ? ` (${stats})` : ''}`;
     }
     return res.text || (res.errors.length ? `That didn’t work: ${res.errors.join(' · ')}` : 'I couldn’t find a matching change. Please describe more precisely what should change.');

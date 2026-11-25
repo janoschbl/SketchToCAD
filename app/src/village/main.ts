@@ -15,6 +15,8 @@ import { makeSticker, stickOnPrism } from './stickers';
 import { createUI, type ClaimVariant } from './ui';
 import { createDrown } from './drown';
 import { createButterflies } from './butterflies';
+import { DEMO } from '../lib/demo';
+import { wellSign, museumSign, questArrow, updateArrow } from './guide';
 
 // ---------------------------------------------------------------- Renderer & Szene
 
@@ -245,15 +247,12 @@ gen.onDone = (o) => {
 // 5  Flug durch die Lücke ins Dorf, Landung auf dem Platz am Brunnen → frei herumlaufen
 
 const well = objs.find((o) => o.id === 'well')!;
-// Sticker auf dem Brunnensockel (10-Eck, r 1.0→1.08, h 0.9): Base44 links, Einhorn rechts der Kante,
+// Sticker auf dem Brunnensockel (10-Eck, r 1.0→1.08, h 0.9): Einhorn links, Patrick rechts der Kante,
 // die genau nach Süden (+z) zeigt – also mittig im Blick bei der Landung auf dem Dorfplatz
 const stickers = [
-  stickOnPrism(makeSticker('/stickers/base44.png', 0.48), -1, 10, 1.0, 1.08, 0.9, 0.47, 0.055),
-  stickOnPrism(makeSticker('/stickers/unicorn.svg', 0.48), 0, 10, 1.0, 1.08, 0.9, 0.47, -0.055),
-  // Greg (Meme-Krokodil) eine Fläche weiter links neben Base44
-  stickOnPrism(makeSticker('/stickers/greg.png', 0.5), -2, 10, 1.0, 1.08, 0.9, 0.47),
-  // Patrick rechts neben dem Einhorn (Bild hat schon einen eigenen weißen Sticker-Rand)
-  stickOnPrism(makeSticker('/stickers/patrick.png', 0.52, false), 1, 10, 1.0, 1.08, 0.9, 0.47),
+  stickOnPrism(makeSticker('/stickers/unicorn.svg', 0.48), -1, 10, 1.0, 1.08, 0.9, 0.47, 0.055),
+  // Patrick (Bild hat schon einen eigenen weißen Sticker-Rand)
+  stickOnPrism(makeSticker('/stickers/patrick.png', 0.52, false), 0, 10, 1.0, 1.08, 0.9, 0.47, -0.055),
 ];
 stickers.forEach((m) => scene.add(m)); // Brunnen steht im Ursprung
 let stickerT = -1;
@@ -749,9 +748,8 @@ function frame(fixedDt?: number) {
   const claimOn = t >= CLAIM_T0 && t < CLAIM_T1 && dash.t < 0;
   if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
   if (t >= T_FP + 0.4 && dash.t < 0) { ui.showGuide(); }
-  updateHint(t);
+  updateGuide(t, dt);
   updateWalkSpot(t);
-  updateMarks();
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(look);
   camera.updateMatrixWorld();
@@ -888,6 +886,7 @@ const ui = createUI({
   onReplayIntro: () => location.reload(),
   onTeam: openEnd,
   onWell: () => { wellSeen = true; },
+  onMuseum: () => { visited.add(museum.id); },
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
     // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
@@ -907,12 +906,14 @@ function openEnd() {
 const ray = new THREE.Raycaster();
 ray.far = 45;
 const ndc = new THREE.Vector2();
-const clickable = (o: SketchObj) => o.id === 'well' || o.id.startsWith('house');
+// Öffentliche Demo: nur, was etwas Eigenes zeigt – Brunnen (So geht's), Museum (Demo), Rathaus (Team).
+// Lokal mit KI öffnet jedes Haus die Werkstatt.
+const clickable = (o: SketchObj) => o.id === 'well' || (o.id.startsWith('house') && (!DEMO || o.label === 'Museum' || o.label === 'Town Hall'));
 function pick(x: number, y: number): SketchObj | null {
   ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   // gegen alle fertigen Objekte testen, damit Bäume davor den Klick abfangen
-  const hits = ray.intersectObjects(objs.filter((o) => o.state === 'done' && o.group.visible).map((o) => o.group), true);
+  const hits = ray.intersectObjects([...objs.filter((o) => o.state === 'done' && o.group.visible).map((o) => o.group), ...[wSign, mSign].filter((g) => g.visible)], true);
   for (const h of hits) {
     let n: THREE.Object3D | null = h.object;
     while (n && !n.userData.obj) n = n.parent;
@@ -943,27 +944,43 @@ function setHover(o: SketchObj | null, x = 0, y = 0) {
 }
 // Hinweis über dem Brunnen nach der Landung, bis man ihn einmal geöffnet hat
 let wellSeen = false;
-const hint = document.createElement('div');
-hint.className = 'vhint';
-// Steht vor dem Brunnen auf dem Platz, Pfeil zeigt nach oben auf den Brunnen
-hint.innerHTML = `<div class="vhint-in"><svg viewBox="0 0 46 54" aria-hidden="true"><path d="M23 51 C 28 40, 18 30, 24 18 M24 17 C 25 13, 25 9, 23 4 M23 4 L 15 12 M23 4 L 31 11"/></svg>
-  <span>Click the well</span></div>`;
-document.body.appendChild(hint);
-const hintPos = V3(0, 0, 0);
-function updateHint(t: number) {
-  const active = free && walkDone && !wellSeen && dash.t < 0 && !ui.isOpen() && !drown.active;
-  let show = false;
-  if (active) {
-    hintPos.set(0, 0.05, 1.35).project(camera);
-    const dist = camera.position.distanceTo(well.center);
-    show = hintPos.z < 1 && Math.abs(hintPos.x) < 0.9 && hintPos.y < 0.85 && hintPos.y > -0.82 && dist < 26;
-    if (show) hint.style.transform = `translate(${((hintPos.x + 1) / 2) * innerWidth}px, ${((1 - hintPos.y) / 2) * innerHeight}px)`;
-    // Brunnen atmet sanft, solange er nicht unter der Maus ist
-    if (hovered !== well) glowObj(well, 0.06 + 0.2 * (0.5 + 0.5 * Math.sin(t * 3.2)) ** 2);
-  } else if (!active && hovered !== well && wellSeen && well.group.userData.pulsed !== false) {
-    glowObj(well, null); well.group.userData.pulsed = false;
+// Wegweiser: Hängeschild am Brunnen, Aufsteller vor dem Museum, 3D-Pfeil als Quest-Guide (erst Brunnen, dann Museum)
+const museum = objs.find((o) => o.label === 'Museum')!;
+const visited = new Set<string>();
+const wSign = wellSign(touchUI);
+wSign.position.add(well.center);
+const mSign = museumSign();
+{
+  // vor die Museumstür, leicht nach rechts versetzt, damit die Tür frei bleibt
+  const h = houses.find((x) => x.label === 'Museum')!;
+  const fx = Math.sin(h.ry), fz = Math.cos(h.ry), rx = Math.cos(h.ry), rz = -Math.sin(h.ry);
+  mSign.position.set(h.x + fx * 2.45 + rx * 0.75, 0.02, h.z + fz * 2.45 + rz * 0.75);
+  mSign.rotation.y = h.ry + 0.25;
+}
+wSign.userData.obj = well; mSign.userData.obj = museum;   // Klick aufs Schild = Klick aufs Ziel (pick läuft die Eltern hoch)
+wSign.visible = mSign.visible = false;
+scene.add(wSign, mSign);
+const arrow = questArrow();
+scene.add(arrow);
+const questTarget = V3(0, 0, 0);
+function updateGuide(t: number, dt: number) {
+  const dist = Math.hypot(fp.pos.x - well.center.x, fp.pos.z - well.center.z);
+  ui.setFar(free && dash.t < 0 && dist > 9);
+  wSign.visible = well.state === 'done';
+  mSign.visible = museum.state === 'done';
+  if (wSign.visible) {
+    // Schild dreht sich gemächlich zu dir und pendelt ein wenig
+    const want = Math.atan2(camera.position.x - wSign.position.x, camera.position.z - wSign.position.z);
+    const d = ((want - wSign.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    wSign.rotation.y += d * (1 - Math.exp(-dt * 2.5));
+    wSign.rotation.z = Math.sin(t * 1.3) * 0.04;
   }
-  hint.classList.toggle('on', show);
+  // Quest: erst der Brunnen, dann das Museum, danach kein Pfeil mehr
+  const active = free && walkDone && dash.t < 0 && !ui.isOpen() && !drown.active;
+  let target: THREE.Vector3 | null = null;
+  if (active && !wellSeen) target = questTarget.set(well.center.x, 3.35, well.center.z);
+  else if (active && !visited.has(museum.id)) target = questTarget.set(mSign.position.x, 1.35, mSign.position.z);
+  updateArrow(arrow, camera, target, t, dt);
 }
 
 // Bodenmarkierung „hier laufen“: pulsierender Ring vor dem Startpunkt, verschwindet, sobald man hineinläuft (oder weit genug gelaufen ist)
@@ -1002,53 +1019,6 @@ function updateWalkSpot(t: number) {
     walkLabel.classList.toggle('on', on);
     if (on) walkLabel.style.transform = `translate(${((walkPos.x + 1) / 2) * innerWidth}px, ${((1 - walkPos.y) / 2) * innerHeight}px)`;
   } else walkLabel.classList.remove('on');
-}
-
-// Ein einziger Hinweis über dem Museum (Demo-Video); die anderen Häuser erkennt man am Hover
-const houseObjs = objs.filter((o) => o.id.startsWith('house') && o.label === 'Museum');
-const visited = new Set<string>();
-const marks = houseObjs.map((o) => {
-  const m = document.createElement('button');
-  m.className = 'vmark';
-  m.type = 'button';
-  m.setAttribute('aria-label', `${o.label}: open workshop`);
-  const isMuseum = o.label === 'Museum';
-  if (isMuseum) m.classList.add('museum');
-  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>▶</b><em>Watch the demo</em></span>`;
-  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); openHouse(o); });
-  document.body.appendChild(m);
-  return { o, m, occluded: false };
-});
-const markPos = V3(0, 0, 0), toMark = V3(0, 0, 0);
-let markFrame = 0;
-function updateMarks() {
-  const active = free && wellSeen && dash.t < 0 && !ui.isOpen() && !drown.active;
-  const occl = active && markFrame++ % 12 === 0;
-  const solid = occl ? objs.filter((o) => o.state === 'done' && o.group.visible).map((o) => o.group) : [];
-  for (const k of marks) {
-    let show = false;
-    if (active && !visited.has(k.o.id)) {
-      markPos.set(k.o.center.x, k.o.maxY + 0.7, k.o.center.z);
-      const dist = camera.position.distanceTo(markPos);
-      if (occl) {
-        // verdeckt? Strahl von der Kamera zur Markierung – trifft er zuerst etwas anderes, ausblenden
-        toMark.copy(markPos).sub(camera.position).normalize();
-        ray.set(camera.position, toMark); ray.far = dist;
-        const hit = ray.intersectObjects(solid, true)[0];
-        let n: THREE.Object3D | null = hit?.object ?? null;
-        while (n && !n.userData.obj) n = n.parent;
-        k.occluded = !!hit && n?.userData.obj !== k.o && hit.distance < dist - 1.2;
-        ray.far = 45;
-      }
-      markPos.project(camera);
-      show = markPos.z < 1 && Math.abs(markPos.x) < 0.96 && Math.abs(markPos.y) < 0.92 && dist < 34 && !k.occluded;
-      if (show) {
-        const sc = THREE.MathUtils.clamp(13 / dist, 0.62, 1.15);
-        k.m.style.transform = `translate(${((markPos.x + 1) / 2) * innerWidth}px, ${((1 - markPos.y) / 2) * innerHeight}px) scale(${sc.toFixed(3)})`;
-      }
-    }
-    k.m.classList.toggle('on', show);
-  }
 }
 
 let hoverQueued = false;

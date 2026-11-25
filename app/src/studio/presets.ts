@@ -87,19 +87,19 @@ export const PRESETS: Preset[] = [
     name: 'butterfly', en: 'Butterfly', match: /butterfl|moth|schmetterling|falter/i, mirror: true, guide: butterflyGuide,
     colors: ['#f08c14', '#1f5fe0', '#000000'], fly: 'wings',
     ideas: ['Make the wing pattern blue and green, mostly blue', 'Body dark brown', 'Wings purple with a bit of pink'],
-    tip: 'Top view, wings open. Draw one side – the mirror does the rest.',
+    tip: 'Top view, wings open. Draw one side, the mirror does the rest.',
   },
   {
     name: 'ladybug', en: 'Ladybug', match: /ladybug|ladybird|lady ?bug|marienk/i, mirror: true, guide: ladybugGuide,
     colors: ['#e02020', '#000000', '#ffffff'], fly: 'elytra',
     ideas: ['Shell orange with black spots', 'Head and pronotum black', 'Make the shell yellow'],
-    tip: 'Top view: red shell with black spots, dark head. Draw one half – the mirror does the rest.',
+    tip: 'Top view: red shell with black spots, dark head. Draw one half, the mirror does the rest.',
   },
   {
     name: 'starfish', en: 'Starfish', match: /starfish|sea ?star|seestern/i, radial: 5, guide: starfishGuide,
     colors: ['#f08c14', '#e02020', '#f0d828'],
     ideas: ['Make it purple with pink dots', 'Arms orange, center red', 'Make it bright red'],
-    tip: 'Top view, five arms. Draw one arm – it is repeated five times around the center.',
+    tip: 'Top view, five arms. Draw one arm, it is repeated five times around the center.',
   },
 ];
 

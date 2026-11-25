@@ -1,9 +1,7 @@
-Museum im Skizzendorf – hier das fertige Projektvideo ablegen:
+Museum im Skizzendorf: Demo-Video im Rahmen auf der Pinnwand ("Work in progress").
 
-  projekt.mp4   (Pflicht; H.264/MP4, 1920x1080, gern unter 50 MB)
-  projekt.jpg   (optional; Vorschaubild, gleiches Seitenverhältnis 16:9)
+  demo-kurz.mp4        geschnittene Fassung (Wartezeiten der KI raus, ~50 s), wird gezeigt
+  projekt-4kreise.mp4  Originalaufnahme (~90 s)
+  projekt.jpg          Vorschaubild
 
-Titel und Beschreibung auf dem Messingschild ändern:
-  app/src/village/ui.ts → MUSEUM_TITLE und MUSEUM_NOTE (ganz oben)
-
-Seite neu laden – fertig. Im Pitch-Modus (?pitch) öffnet Taste 6 direkt das Museum.
+Video, Titel und Text ändern: app/src/village/ui.tsx -> MUSEUM_VIDEO und die Komponente Museum.

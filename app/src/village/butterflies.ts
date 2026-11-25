@@ -1,12 +1,15 @@
-// Schmetterlings-Demo am Brunnen: Ein Stift schwebt um den Brunnen und zeichnet nacheinander Schmetterlinge in die Luft.
-// Jede fertige Skizze wird farbig, erwacht, flattert erst um den Brunnen und fliegt dann davon (höchstens 3 gleichzeitig).
+// Schmetterlings-Demo am Brunnen: Ein Stift schwebt um den Brunnen und zeichnet nacheinander Schmetterlinge flach auf den Platz.
+// Jede fertige Skizze verwandelt sich an Ort und Stelle in den echten Schmetterling (die Linien gehen dabei ganz in ihm auf),
+// erst dann hebt er ab, flattert um den Brunnen und fliegt davon (höchstens 3 gleichzeitig, jedes Mal an einer anderen Stelle).
 import * as THREE from 'three';
 
 const INK = '#1e2d78';
 const PALETTE = ['#ff8a5a', '#ffd166', '#f78fb3', '#8fd3f4', '#b9a2f2', '#9be2a5'];
 const MAX_ALIVE = 3;
-const DRAW_T = 2.6, FLY_T = 12, FADE_T = 1.6;
-const SKETCH_SCALE = 0.3, REAL_SCALE = 0.2;   // Skizze klein, der echte Schmetterling noch etwas kleiner
+const DRAW_T = 2.6, MORPH_T = 1.1, FLY_T = 12, FADE_T = 1.6;
+const SKETCH_SCALE = 0.5, REAL_SCALE = 0.2;   // Skizze am Boden gut lesbar, der echte Schmetterling deutlich kleiner
+const GROUND_Y = 0.045;                          // knapp über dem Platz (Platz liegt auf 0.02)
+const FLAT = -Math.PI / 2;                       // Skizze liegt flach, Oberkante zeigt vom Betrachter weg
 
 // Rechter Flügel (Obergröße 1): von der Körpermitte über den oberen und unteren Lappen zurück
 const WING_R: [number, number][] = [[0, 0], [0.18, 0.34], [0.55, 0.78], [0.98, 0.78], [1.04, 0.36], [0.45, 0.06], [0.82, -0.18], [0.9, -0.62], [0.55, -0.8], [0.24, -0.42], [0, 0]];
@@ -94,13 +97,21 @@ export function createButterflies(scene: THREE.Scene) {
 
   function spawn(cam: THREE.Vector3): Fly {
     const side = Math.random() < 0.5 ? -1 : 1;
-    const ang = Math.atan2(cam.x, cam.z) + side * (0.5 + Math.random() * 0.45);   // seitlich vom Brunnen, nicht hinter dem Dach
-    const r = 2.6;
-    const spot = new THREE.Vector3(Math.sin(ang) * r, 1.45 + Math.random() * 0.35, Math.cos(ang) * r);
+    // jedes Mal woanders auf dem Platz, aber im Blickfeld: links oder rechts vom Brunnen, nah oder weiter weg
+    const camAng = Math.atan2(cam.x, cam.z);
+    let ang = camAng, r = 3;
+    const spot = new THREE.Vector3();
+    for (let tries = 0; tries < 8; tries++) {
+      ang = camAng + side * (0.35 + Math.random() * 1.15);
+      r = 2.7 + Math.random() * 2.4;
+      spot.set(Math.sin(ang) * r, GROUND_Y, Math.cos(ang) * r);
+      if (Math.hypot(spot.x - cam.x, spot.z - cam.z) > 2.6 && flies.every((o) => o.spot.distanceTo(spot) > 1.4)) break;   // nicht vor den Füßen, nicht auf einem anderen
+    }
     const group = new THREE.Group();
     group.position.copy(spot);
     group.rotation.order = 'YXZ';
-    group.rotation.y = Math.atan2(cam.x - spot.x, cam.z - spot.z);   // Skizze zeigt zum Betrachter
+    group.rotation.y = Math.atan2(cam.x - spot.x, cam.z - spot.z);   // Skizze liegt lesbar zum Betrachter
+    group.rotation.x = FLAT;
     group.scale.setScalar(SKETCH_SCALE);
     const geom = new THREE.TubeGeometry(PATH, TUBE_SEG, 0.035, TUBE_RAD, false);
     geom.setDrawRange(0, 0);
@@ -169,17 +180,21 @@ export function createButterflies(scene: THREE.Scene) {
         const f = flies[i];
         if (f.phase === 'draw') { f.age += dt; continue; }
         f.age += dt;
-        const t = f.age;
-        const wake = smooth(t / 0.8);                 // Skizze verblasst, der echte Schmetterling erscheint
+        // 1) Verwandlung am Boden: Linien gehen in den farbigen Schmetterling über, er zieht sich dabei zusammen
+        const m = smooth(f.age / MORPH_T);
+        const t = Math.max(0, f.age - MORPH_T);        // Flugzeit, beginnt erst nach der Verwandlung
         const fade = 1 - smooth((t - (FLY_T - FADE_T)) / FADE_T);
-        (f.wr.mesh.material as THREE.MeshBasicMaterial).opacity = (f.wl.mesh.material as THREE.MeshBasicMaterial).opacity = wake * fade;
-        (f.mats[3] as THREE.MeshBasicMaterial).opacity = wake * fade;
-        (f.mats[0] as THREE.MeshBasicMaterial).opacity = (1 - wake) * 0.9;
-        f.group.scale.setScalar(THREE.MathUtils.lerp(SKETCH_SCALE, REAL_SCALE, wake));
-        // Flügelschlag (Scharnier an der Körpermitte), beim Erwachen noch langsam
-        const flap = 0.2 + 0.85 * Math.abs(Math.sin(t * (6 + 12 * wake) + f.seed));
+        (f.wr.mesh.material as THREE.MeshBasicMaterial).opacity = (f.wl.mesh.material as THREE.MeshBasicMaterial).opacity = m * fade;
+        (f.mats[3] as THREE.MeshBasicMaterial).opacity = m * fade;
+        (f.mats[0] as THREE.MeshBasicMaterial).opacity = (1 - m) * 0.9;   // bei fertigem Schmetterling ist die Skizze weg
+        f.ink.visible = m < 1;
+        f.group.scale.setScalar(THREE.MathUtils.lerp(SKETCH_SCALE, REAL_SCALE, m));
+        // Flügelschlag (Scharnier an der Körpermitte): am Ende der Verwandlung ein, zwei langsame Schläge, dann normal
+        const wake = smooth(f.age / (MORPH_T + 0.4));
+        const flap = 0.2 + 0.85 * Math.abs(Math.sin(t * (6 + 12 * smooth(t / 0.6)) + f.seed));
         f.wr.hinge.rotation.y = -flap * wake; f.wl.hinge.rotation.y = flap * wake;
-        // Position & Blickrichtung
+        if (f.age < MORPH_T) continue;
+        // 2) Abheben und Flug
         const p0 = f.group.position;
         flyPos(f, t, tmp);
         const k = smooth(t / 1.2);
@@ -188,12 +203,12 @@ export function createButterflies(scene: THREE.Scene) {
         p0.set(nx, ny, nz);
         if (Math.hypot(vx, vz) > 1e-4) {
           const h = Math.atan2(-vx, -vz);
-          // sanft zur Flugrichtung drehen und aus der senkrechten Skizze in die Flugposition kippen
+          // sanft zur Flugrichtung drehen und aus der flachen Bodenlage in die Flugposition aufrichten
           const g = f.group;
           const dy = ((h - g.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
           g.rotation.order = 'YXZ';
           g.rotation.y += dy * Math.min(1, dt * 4) * k;
-          g.rotation.x = THREE.MathUtils.lerp(0, -1.15, k);
+          g.rotation.x = THREE.MathUtils.lerp(FLAT, -1.15, k);
           g.rotation.z = Math.sin(t * 2 + f.seed) * 0.15 * k;
         }
         if (t >= FLY_T) { dispose(f); flies.splice(i, 1); }
