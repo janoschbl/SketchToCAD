@@ -5,12 +5,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Dialog, DropdownMenu } from 'radix-ui';
-import { ArrowLeft, ArrowRight, Menu, Play, Xmark } from 'reicon-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, Menu, Pause, Play, Xmark } from 'reicon-react';
 import { DEMO } from '../lib/demo';
+import type { mountDemo, Stage } from './demo3d';
 
 const CONTACT_MAIL = 'janoschbl@proton.me';
 const TOOL_URL = (import.meta.env.VITE_TOOL_URL as string | undefined) ?? '/';
-// Museum: geschnittenes Demo-Video (Wartezeiten der KI entfernt) im Rahmen auf der Pinnwand
+// Museum: geschnittenes Demo-Video (Wartezeiten der KI entfernt)
 const MUSEUM_VIDEO = '/museum/demo-kurz.mp4';
 const MUSEUM_POSTER = '/museum/projekt.jpg';
 
@@ -41,7 +42,6 @@ export interface VillageUI {
   /** Steuerungshinweis nach der Landung; verschwindet, sobald man gelaufen ist und sich umgesehen hat */
   showGuide(): void;
   noteDone(key: GuideKey): void;
-  openTeam(): void;
   showHover(label: string | null, x?: number, y?: number): void;
   openWell(): void;
   openTool(house: string): void;
@@ -83,23 +83,45 @@ function CTA({ act, children }: { act: () => void; children: ReactNode }) {
   return <button type="button" className="vcta" onClick={act}>{children}<ArrowRight size={18} aria-hidden /></button>;
 }
 
-/** Echte Verwandlung: Kinderzeichnung → 3D-Modell aus unserer Pipeline (three.js, lädt erst beim Öffnen) */
+const WELL_IMAGE = '/well-demo/specimen.webp';
+const WELL_STAGES = [['sketch', 'Sketch'], ['image', '2D image'], ['model', '3D flight']] as const;
+
 function ModelDemo() {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [stage, setStage] = useState<'sketch' | 'model'>('sketch');
+  const demo = useRef<ReturnType<typeof mountDemo> | null>(null);
+  const [stage, setStage] = useState<Stage>('sketch');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'fallback'>('loading');
+  const [playing, setPlaying] = useState(true);
+  const [reduce] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
-    let stop = () => {};
     let alive = true;
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    import('./demo3d').then(({ mountDemo }) => { if (alive && ref.current) stop = mountDemo(ref.current, setStage, reduce); });
-    return () => { alive = false; stop(); };
-  }, []);
+    import('./demo3d').then(({ mountDemo }) => {
+      if (!alive || !ref.current) return;
+      demo.current = mountDemo(ref.current, WELL_IMAGE, setStage, () => setStatus('ready'), reduce);
+      return demo.current.ready;
+    }).catch(() => {
+      if (!alive) return;
+      demo.current?.dispose();
+      demo.current = null;
+      setStage('image');
+      setStatus('fallback');
+    });
+    return () => { alive = false; demo.current?.dispose(); demo.current = null; };
+  }, [reduce]);
   return (
-    <figure className="vdemo" aria-label="A child's sketch of a butterfly turns into a 3D model">
-      <canvas ref={ref} />
+    <figure className="vdemo" aria-label="A butterfly sketch turns into a 2D image and takes flight as a 3D model">
+      <div className="vdemo-art">
+        <canvas ref={ref} aria-hidden />
+        {status === 'fallback' && <img src={WELL_IMAGE} alt="Blue and green butterfly with its wings spread" />}
+        {status === 'ready' && !reduce && (
+          <button className="vdemo-play" type="button" aria-label={playing ? 'Pause butterfly animation' : 'Play butterfly animation'} onClick={() => {
+            demo.current?.setPlaying(!playing);
+            setPlaying(!playing);
+          }}>{playing ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}</button>
+        )}
+      </div>
       <figcaption>
-        <span data-on={stage === 'sketch'}>Sketch</span>
-        <span data-on={stage === 'model'}>3D model</span>
+        {WELL_STAGES.map(([key, label], i) => <span key={key} aria-current={stage === key ? 'step' : undefined}><b>{i + 1}</b>{label}</span>)}
       </figcaption>
     </figure>
   );
@@ -108,9 +130,9 @@ function ModelDemo() {
 function WellCard({ go }: { go: Go }) {
   return (
     <div className="vcard-split">
-      <ModelDemo />
+      <div className="vdemo-slot"><ModelDemo /></div>
       <div>
-        <p className="vcard-wip">Still a work in progress.</p>
+        <p className="vcard-wip">Still work in progress.</p>
         <Dialog.Title asChild><h2>Sketch it. Say it. Get 3D.</h2></Dialog.Title>
         <Dialog.Description className="vcard-lead">{SUBLINE}</Dialog.Description>
         <div className="vcard-actions vcard-actions-top">
@@ -133,26 +155,37 @@ function WellCard({ go }: { go: Go }) {
 }
 
 const TEAM = [
-  { name: 'Martin Oliver Thiel', url: 'https://www.linkedin.com/in/martin-oliver-thiel-214784196/' },
-  { name: 'Mariia Pravoslavna', url: 'https://www.linkedin.com/in/mariia-pravoslavna/' },
-  { name: 'Janosch Dickhage', url: 'https://www.linkedin.com/in/janosch-dickhage-038380451/' },
+  { name: 'Martin Oliver Thiel', initials: 'MT', url: 'https://www.linkedin.com/in/martin-oliver-thiel-214784196/' },
+  { name: 'Mariia Pravoslavna', initials: 'MP', url: 'https://www.linkedin.com/in/mariia-pravoslavna/' },
+  { name: 'Janosch Dickhage', initials: 'JD', url: 'https://www.linkedin.com/in/janosch-dickhage-038380451/' },
 ];
 
 function AboutCard() {
   return (
     <>
       <figure className="vteam">
-        <img src="/endslide/team-preview.webp" alt="Martin, Mariia and Janosch with laptops at the hackathon table" width={800} height={600} />
-        <figcaption className="vteam-tags" aria-hidden="true">
-          <span>Martin</span><span>Mariia</span><span>Janosch</span>
-        </figcaption>
+        <div className="vteam-photo">
+          <img src="/endslide/team-preview.webp" alt="Martin, Mariia and Janosch with laptops at the hackathon table" width={800} height={600} />
+          <div className="vteam-tags" aria-hidden="true">
+            <span>Martin</span><span>Mariia</span><span>Janosch</span>
+          </div>
+        </div>
       </figure>
       <div className="vabout-text">
         <Dialog.Title asChild><h2>Meet the team</h2></Dialog.Title>
         <Dialog.Description>We built SketchTo3D at a <a href="https://www.startplatz.de/" target="_blank" rel="noopener">STARTPLATZ</a> hackathon. It’s a prototype that turns sketches into 3D assets for film.</Dialog.Description>
         <p>Mariia and Janosch are open to software development roles.</p>
-        <ul className="vlinks" aria-label="Team on LinkedIn">
-          {TEAM.map((m) => <li key={m.url}><a href={m.url} target="_blank" rel="noopener">{m.name}<span className="vlinks-tag">LinkedIn</span></a></li>)}
+        <p id="team-profiles" className="vlinks-label">Find us on LinkedIn</p>
+        <ul className="vlinks" role="list" aria-labelledby="team-profiles">
+          {TEAM.map(({ name, initials, url }) => (
+            <li key={url}>
+              <a href={url} target="_blank" rel="noopener">
+                <span className="vlinks-initials" aria-hidden>{initials}</span>
+                <span>{name}</span>
+                <ArrowUpRight className="vlinks-arrow" size={16} aria-hidden />
+              </a>
+            </li>
+          ))}
         </ul>
       </div>
     </>
@@ -171,7 +204,7 @@ function ImprintCard() {
       <p className="vcard-small">nach § 18 Abs. 2 MStV</p>
       <p>{ADDRESS}</p>
       <h3>Schriften und Icons</h3>
-      <p className="vcard-small">Schriften Fredoka und Nunito (SIL Open Font License 1.1), Icons von Reicon (MIT-Lizenz). Alles wird lokal von diesem Server geladen.</p>
+      <p className="vcard-small">Schriften Fredoka, Nunito und Caveat (SIL Open Font License 1.1), Icons von Reicon (MIT-Lizenz). Alles wird lokal von diesem Server geladen.</p>
     </div>
   );
 }
@@ -200,7 +233,6 @@ function PrivacyCard() {
   );
 }
 
-/** Museum: Demo-Video im Rahmen auf einer Pinnwand, darüber ein angepinnter Zettel „Work in progress“ */
 function Museum() {
   const v = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -210,13 +242,21 @@ function Museum() {
   }, []);
   return (
     <div className="vboard">
-      <div className="vboard-note">
-        <span className="vboard-pin" aria-hidden />
-        <Dialog.Title asChild><h2>Work in progress</h2></Dialog.Title>
-        <Dialog.Description>Demo: from a sketch to an animated 3D butterfly.</Dialog.Description>
+      <div className="vboard-notes">
+        <div className="vboard-note vboard-note-wip">
+          <span className="vboard-pin" aria-hidden />
+          <p>Work in progress</p>
+        </div>
+        <div className="vboard-note vboard-note-demo">
+          <span className="vboard-pin" aria-hidden />
+          <Dialog.Title asChild><h2>Demo</h2></Dialog.Title>
+        </div>
       </div>
-      <figure className="vboard-frame">
-        <video ref={v} src={MUSEUM_VIDEO} poster={MUSEUM_POSTER} playsInline controls preload="auto" />
+      <figure className="vboard-sheet">
+        <span className="vboard-pin vboard-pin-left" aria-hidden />
+        <span className="vboard-pin vboard-pin-right" aria-hidden />
+        <video ref={v} src={MUSEUM_VIDEO} poster={MUSEUM_POSTER} playsInline controls preload="auto" aria-label="SketchTo3D project demo" />
+        <figcaption>From sketch to animated butterfly</figcaption>
       </figure>
     </div>
   );
@@ -316,7 +356,7 @@ function Overlay({ store, go, close, onJump }: { store: Store; go: Go; close: ()
   );
 }
 
-export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onWell?: () => void; onOpenChange?: (open: boolean) => void; onTeam?: () => void; onMuseum?: () => void; claim?: ClaimVariant }): VillageUI {
+export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; onWell?: () => void; onOpenChange?: (open: boolean) => void; onMuseum?: () => void; claim?: ClaimVariant }): VillageUI {
   const store = createStore({ mode: 'intro', card: null, shop: null, guide: false, far: false });
   let wasOpen = false;
   store.sub(() => {
@@ -366,7 +406,6 @@ export function createUI(opts: { onJump: () => void; onReplayIntro: () => void; 
       tip.classList.add('on');
     },
     openWell: () => go('well'),
-    openTeam: () => opts.onTeam?.(),
     openMuseum: () => store.set({ card: 'museum', shop: null }),
     showGuide() {
       if (guideShown) return;

@@ -1,4 +1,3 @@
-import { showEndSlide } from './slide';
 import * as THREE from 'three';
 import './village.css';
 import * as P from './props';
@@ -84,7 +83,6 @@ const RING = [
   { a: 1.98, wall: '#f6e2c4', roof: '#9b4f5f', w: 3.0, d: 2.7, h: 1.9, label: 'Rose Cottage' },
   { a: 2.6, wall: '#f4dcc0', roof: '#d39a3a', w: 3.3, label: 'Museum' },          // direkt hinter dem Brunnen (rechts, frei sichtbar) – Projektvideo
   { a: 3.62, wall: '#eed7b8', roof: '#5d7f4a', w: 3.3, label: 'Herb House' },
-  { a: 4.3, wall: '#f6e2c4', roof: '#b85a3c', w: 3.2, h: 2.3, label: 'Town Hall' },
   { a: -1.0, wall: '#f0d8b6', roof: '#6a5a9a', w: 3.2, label: 'Lilac House' },
   { a: -0.42, wall: '#f3dcb2', roof: '#c26a3a', w: 3.0, label: 'West Gatehouse' },
 ];
@@ -404,10 +402,9 @@ canvas.addEventListener('pointerup', (e) => {
 });
 canvas.addEventListener('pointercancel', endDrag);
 
-/** Museum → Demo-Video, Rathaus → Teamfolie, alle anderen Häuser → Werkstatt */
+/** Museum → Demo-Video, alle anderen Häuser → Werkstatt */
 function openHouse(o: SketchObj) {
   if (o.label === 'Museum') ui.openMuseum();
-  else if (o.label === 'Town Hall') ui.openTeam();
   else ui.openTool(o.label ?? 'Workshop');
 }
 
@@ -883,31 +880,22 @@ const ui = createUI({
   claim: (['titel', 'hand', 'unten'].includes(claimParam ?? '') ? claimParam : 'titel') as ClaimVariant,
   onJump: jumpToWell,
   onReplayIntro: () => location.reload(),
-  onTeam: openEnd,
   onWell: () => { wellSeen = true; },
   onMuseum: () => { museumSeen = true; },
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
-    // Werkstatt verdeckt alles → 3D-Szene nicht weiter rendern (spart Akku/GPU)
-    paused = open && !!document.querySelector('.vshop.on, .vfull');
+    // Die Dorfansicht bleibt hinter dem Dialog stehen und gibt die GPU für die Demo frei.
+    paused = open;
   },
 });
 ui.setMode('intro');
-// Teamfolie (Foto-Collage): steckt im Rathaus – Klick aufs Haus öffnet sie, Pfeil links/Esc schließt sie
-let endOpen = false;
-function openEnd() {
-  if (endOpen) return;
-  endOpen = true; keys.clear(); paused = true;
-  showEndSlide().then(() => { endOpen = false; paused = false; });
-}
-
 // Häuser und Brunnen anklickbar
 const ray = new THREE.Raycaster();
 ray.far = 45;
 const ndc = new THREE.Vector2();
-// Öffentliche Demo: nur, was etwas Eigenes zeigt – Brunnen (So geht's), Museum (Demo), Rathaus (Team).
+// Öffentliche Demo: nur Brunnen (So geht's) und Museum (Demo).
 // Lokal mit KI öffnet jedes Haus die Werkstatt.
-const clickable = (o: SketchObj) => o.id === 'well' || (o.id.startsWith('house') && (!DEMO || o.label === 'Museum' || o.label === 'Town Hall'));
+const clickable = (o: SketchObj) => o.id === 'well' || (o.id.startsWith('house') && (!DEMO || o.label === 'Museum'));
 function pick(x: number, y: number): SketchObj | null {
   ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);
@@ -939,7 +927,7 @@ function setHover(o: SketchObj | null, x = 0, y = 0) {
     hovered = o;
     document.body.classList.toggle('hovering', !!o);
   }
-  ui.showHover(o ? (o.id === 'well' ? 'Well · How it works' : o.label === 'Museum' ? 'Museum · Watch the demo' : o.label === 'Town Hall' ? 'Town Hall · Meet the team' : `${o.label} · Workshop`) : null, x, y);
+  ui.showHover(o ? (o.id === 'well' ? 'Well · How it works' : o.label === 'Museum' ? 'Museum · Watch the demo' : `${o.label} · Workshop`) : null, x, y);
 }
 let wellSeen = false;
 let museumSeen = false;
