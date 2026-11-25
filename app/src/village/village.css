@@ -179,6 +179,11 @@ body.hovering #scene { cursor: pointer; }
 .vdialog-museum .vcard-x { top: -6px; right: -6px; background: #1d1611; color: #fff7ea; border: 1px solid var(--line); z-index: 3; }
 @media (hover: hover) and (pointer: fine) { .vdialog-museum .vcard-x:hover { background: #2a2019; } }
 
+/* Gleicher Abstand zwischen Videokante und Rahmen an den oberen Ecken */
+:is(.vboard-frame, .vboard-sheet) { --video-inset: 8px; --video-radius: 8px;
+  padding: var(--video-inset); border-radius: calc(var(--video-radius) + var(--video-inset)); }
+:is(.vboard-frame, .vboard-sheet) video { border-radius: var(--video-radius); }
+
 /* Werkstatt: Canvas im Vollbild-Dialog */
 .vshop { position: fixed; z-index: 30; inset: 0; display: flex; flex-direction: column; background: var(--paper); outline: none; animation: vfade-in 250ms var(--ease-out); }
 .vshop[data-state="closed"] { animation: vfade-out 200ms var(--ease-out) forwards; }
@@ -206,17 +211,18 @@ body.hovering #scene { cursor: pointer; }
   .vback:hover .vback-label { opacity: 1; transition-delay: 60ms; }
 }
 
-/* About: Foto bleibt stehen, nur die Textspalte scrollt */
-.vcard-about { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); grid-template-rows: minmax(0, 1fr);
-  width: min(900px, calc(100% - 32px)); height: min(80dvh, 524px); padding: 0; overflow: hidden; }
-.vabout-text { margin: 48px 8px 16px 0; padding: 0 22px 10px 30px; overflow-y: auto; overscroll-behavior: contain; }
+/* About: quadratische Vorschau mit eigener Textspalte */
+.vcard-about { grid-template-rows: minmax(0, 1fr); height: min(80dvh, 430px); overflow: hidden; }
+.vabout-text { align-self: stretch; min-height: 0; padding: 0 8px 8px 0; overflow-y: auto; overscroll-behavior: contain; }
+.vabout-text h2 { padding-inline-end: 16px; }
 .vabout-text:focus-visible { outline: 2px solid #ffb38a; outline-offset: -2px; }
-.vteam { margin: 0; position: relative; overflow: hidden; }
+.vteam { width: min(100%, 344px, calc(80dvh - var(--preview-inset) - var(--preview-inset) - 2px)); aspect-ratio: 1;
+  margin: 0; position: relative; overflow: hidden; }
 .vteam img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 44% 58%; scale: 1.17; transform-origin: 44% 58%; }
 .vteam figcaption { position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; border-radius: 999px; font: 500 13px/1 var(--round); color: #fff7ea; background: var(--surface); }
 @media (max-width: 620px) and (orientation: portrait) {
-  .vcard-about { grid-template-columns: minmax(0, 1fr); grid-template-rows: min(27dvh, 235px) minmax(0, 1fr); height: 84dvh; }
-  .vabout-text { margin: 16px 6px 12px 0; padding-inline: 20px 14px; }
+  .vcard.vcard-about { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px; height: 84dvh; }
+  .vteam { width: min(100%, 320px, 35dvh); justify-self: center; }
   .vteam img { scale: 1.27; }
   .vcard-about .vcard-x { background: var(--surface); color: #fff7ea; }
 }
@@ -235,9 +241,16 @@ body.hovering #scene { cursor: pointer; }
 :is(.vcard, .vabout-text)::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 247, 234, 0.38); }
 :is(.vcard, .vabout-text)::-webkit-scrollbar-button { display: none; height: 0; }
 
-/* ---------------------------------------------------------------- Brunnenkarte: Erklär-Animation neben dem Text */
-.vcard-wide { width: min(860px, calc(100% - 32px)); }
-.vcard-split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 28px; align-items: center; }
+/* ---------------------------------------------------------------- Karten mit Vorschau */
+.vcard:is(.vcard-wide, .vcard-about) { --preview-inset: 24px; --preview-radius: 16px;
+  width: min(860px, calc(100% - 32px)); padding: var(--preview-inset);
+  border-radius: calc(var(--preview-radius) + var(--preview-inset) + 1px); }
+:is(.vcard-split, .vcard-about) { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 28px; align-items: start; }
+:is(.vteam, .vdemo) { border-radius: var(--preview-radius); }
+.vcard-wide .vdemo-art::before { border-radius: max(0px, calc(var(--preview-radius) - 10px)); }
+@media (max-width: 620px) {
+  .vcard:is(.vcard-wide, .vcard-about) { --preview-inset: 16px; --preview-radius: 14px; }
+}
 @media (max-width: 760px) { .vcard-split { grid-template-columns: 1fr; gap: 12px; padding-top: 30px; } .vdemo { max-width: 320px; } }
 /* Brunnenkarte kompakt, damit der Text neben das Modell passt */
 .vcard-wip { margin: 0 0 6px !important; font: 500 14px/1.2 var(--round); color: #ffb38a !important; }
@@ -248,7 +261,7 @@ body.hovering #scene { cursor: pointer; }
 .vsteps-tight { margin: 14px 0 0; gap: 8px; }
 .vsteps-tight li { font-size: 15px; line-height: 1.45; padding-left: 36px; }
 .vsteps-tight li::before { width: 24px; height: 24px; font-size: 12px; }
-.vdemo { position: relative; margin: 0; border-radius: 18px; background: #fbf6ec; overflow: hidden; }
+.vdemo { position: relative; margin: 0; background: #fbf6ec; overflow: hidden; }
 .vdemo canvas { display: block; width: 100%; aspect-ratio: 1; }
 .vdemo figcaption { position: absolute; left: 0; right: 0; bottom: 14px; display: grid; justify-items: center; font: 500 14px/1 var(--round); color: rgba(43, 33, 24, 0.7); }
 .vdemo figcaption > * { grid-area: 1 / 1; opacity: 0; transition: opacity 200ms var(--ease-out); }
