@@ -5,7 +5,8 @@ import * as THREE from 'three';
 const INK = '#1e2d78';
 const PALETTE = ['#ff8a5a', '#ffd166', '#f78fb3', '#8fd3f4', '#b9a2f2', '#9be2a5'];
 const MAX_ALIVE = 3;
-const DRAW_T = 3.4, FLY_T = 11, FADE_T = 1.6;
+const DRAW_T = 2.6, FLY_T = 12, FADE_T = 1.6;
+const SKETCH_SCALE = 0.3, REAL_SCALE = 0.2;   // Skizze klein, der echte Schmetterling noch etwas kleiner
 
 // Rechter Flügel (Obergröße 1): von der Körpermitte über den oberen und unteren Lappen zurück
 const WING_R: [number, number][] = [[0, 0], [0.18, 0.34], [0.55, 0.78], [0.98, 0.78], [1.04, 0.36], [0.45, 0.06], [0.82, -0.18], [0.9, -0.62], [0.55, -0.8], [0.24, -0.42], [0, 0]];
@@ -20,9 +21,42 @@ for (let i = 0; i <= 10; i++) BODY.push(new THREE.Vector2(0, 0.38 - i * 0.098));
 const PATH = new THREE.CatmullRomCurve3([...R, ...L, ...BODY].filter((_, i) => i % 2 === 0).map((p) => new THREE.Vector3(p.x, p.y, 0)), false, 'centripetal');
 const TUBE_SEG = 260, TUBE_RAD = 4;
 
-function wingMesh(pts: THREE.Vector2[], color: THREE.Color) {
-  const g = new THREE.ShapeGeometry(new THREE.Shape(pts));
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+// Flügeltextur: Farbverlauf, dunkler Rand, Adern und helle Punkte (rechter Flügel, Koordinaten wie WING_R)
+const WX = 1.06, WY0 = -0.82, WY1 = 0.8;
+function wingTexture(hex: string) {
+  const W = 256, H = Math.round((W * (WY1 - WY0)) / WX), c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d')!;
+  const P = (x: number, y: number) => [(x / WX) * W, ((WY1 - y) / (WY1 - WY0)) * H] as const;
+  g.beginPath();
+  R.forEach((p, i) => { const [x, y] = P(p.x, p.y); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.closePath();
+  const col = new THREE.Color(hex), dark = col.clone().multiplyScalar(0.45);
+  const [cx, cy] = P(0, 0);
+  const grad = g.createRadialGradient(cx, cy, 4, cx, cy, W * 1.05);
+  grad.addColorStop(0, '#' + dark.getHexString()); grad.addColorStop(0.18, hex); grad.addColorStop(0.75, '#' + col.clone().offsetHSL(0.02, 0, 0.12).getHexString()); grad.addColorStop(1, hex);
+  g.fillStyle = grad; g.fill();
+  g.save(); g.clip();
+  g.strokeStyle = 'rgba(30,20,50,0.35)'; g.lineWidth = 2;
+  for (let i = 0; i < 7; i++) { const [x, y] = P(0.98, 0.72 - i * 0.3); g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke(); }   // Adern
+  g.fillStyle = 'rgba(255,255,255,0.85)';
+  for (const [x, y, r] of [[0.9, 0.62, 0.05], [0.72, 0.7, 0.035], [0.95, 0.42, 0.03], [0.78, -0.55, 0.045], [0.6, -0.68, 0.03], [0.86, -0.38, 0.03]] as const) { const [px, py] = P(x, y); g.beginPath(); g.arc(px, py, r * W, 0, 7); g.fill(); }   // helle Punkte am Rand
+  g.restore();
+  g.lineJoin = 'round'; g.lineWidth = 7; g.strokeStyle = '#2b1d3a';   // dunkler Rand
+  g.beginPath(); R.forEach((p, i) => { const [x, y] = P(p.x, p.y); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+function wingGeom() {
+  const g = new THREE.ShapeGeometry(new THREE.Shape(R));
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / WX, (pos.getY(i) - WY0) / (WY1 - WY0));
+  return g;
+}
+const WING_GEOM = wingGeom();
+function wingMesh(tex: THREE.Texture, mirrored: boolean) {
+  const m = new THREE.Mesh(WING_GEOM, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.02 }));
+  if (mirrored) m.scale.x = -1;
   const hinge = new THREE.Group();
   hinge.add(m);
   return { hinge, mesh: m };
@@ -31,7 +65,7 @@ function wingMesh(pts: THREE.Vector2[], color: THREE.Color) {
 const smooth = (k: number) => { k = Math.min(1, Math.max(0, k)); return k * k * (3 - 2 * k); };
 
 interface Fly {
-  group: THREE.Group; ink: THREE.Mesh; wr: ReturnType<typeof wingMesh>; wl: ReturnType<typeof wingMesh>; mats: THREE.Material[];
+  group: THREE.Group; ink: THREE.Mesh; wr: ReturnType<typeof wingMesh>; wl: ReturnType<typeof wingMesh>; body: THREE.Mesh; tex: THREE.Texture; mats: THREE.Material[];
   age: number; phase: 'draw' | 'fly'; spot: THREE.Vector3; ang: number; seed: number;
 }
 
@@ -59,24 +93,31 @@ export function createButterflies(scene: THREE.Scene) {
   const tmp = new THREE.Vector3();
 
   function spawn(cam: THREE.Vector3): Fly {
-    const ang = Math.atan2(cam.x, cam.z) + (Math.random() - 0.5) * 1.9;   // auf der Seite zur Kamera
-    const r = 2.9;
-    const spot = new THREE.Vector3(Math.sin(ang) * r, 1.9 + Math.random() * 0.5, Math.cos(ang) * r);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const ang = Math.atan2(cam.x, cam.z) + side * (0.5 + Math.random() * 0.45);   // seitlich vom Brunnen, nicht hinter dem Dach
+    const r = 2.6;
+    const spot = new THREE.Vector3(Math.sin(ang) * r, 1.45 + Math.random() * 0.35, Math.cos(ang) * r);
     const group = new THREE.Group();
     group.position.copy(spot);
     group.rotation.order = 'YXZ';
     group.rotation.y = Math.atan2(cam.x - spot.x, cam.z - spot.z);   // Skizze zeigt zum Betrachter
-    group.scale.setScalar(0.62 + Math.random() * 0.18);
-    const geom = new THREE.TubeGeometry(PATH, TUBE_SEG, 0.016, TUBE_RAD, false);
+    group.scale.setScalar(SKETCH_SCALE);
+    const geom = new THREE.TubeGeometry(PATH, TUBE_SEG, 0.035, TUBE_RAD, false);
     geom.setDrawRange(0, 0);
     inkGeoms.push(geom);
     const inkMat = new THREE.MeshBasicMaterial({ color: INK, transparent: true });
     const ink = new THREE.Mesh(geom, inkMat);
-    const color = new THREE.Color(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
-    const wr = wingMesh(R, color), wl = wingMesh(L, color);
-    group.add(wr.hinge, wl.hinge, ink);
+    const tex = wingTexture(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
+    const wr = wingMesh(tex, false), wl = wingMesh(tex, true);
+    const bodyMat = new THREE.MeshBasicMaterial({ color: '#2b1d3a', transparent: true, opacity: 0 });
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.62, 4, 8), bodyMat);
+    body.position.y = -0.02;
+    const ant = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.008, 4, 16, Math.PI), bodyMat);
+    ant.position.y = 0.34; ant.scale.set(1, 1.3, 1);
+    body.add(ant); ant.position.set(0, 0.34, 0);
+    group.add(wr.hinge, wl.hinge, body, ink);
     scene.add(group);
-    return { group, ink, wr, wl, mats: [inkMat, wr.mesh.material as THREE.Material, wl.mesh.material as THREE.Material], age: 0, phase: 'draw', spot, ang, seed: Math.random() * 10 };
+    return { group, ink, wr, wl, body, tex, mats: [inkMat, wr.mesh.material as THREE.Material, wl.mesh.material as THREE.Material, bodyMat], age: 0, phase: 'draw', spot, ang, seed: Math.random() * 10 };
   }
 
   /** Flugbahn: erst Kreise um den Brunnen, dann spiralförmig nach außen und oben davon */
@@ -90,7 +131,7 @@ export function createButterflies(scene: THREE.Scene) {
   function dispose(f: Fly) {
     scene.remove(f.group);
     f.ink.geometry.dispose();
-    f.wr.mesh.geometry.dispose(); f.wl.mesh.geometry.dispose();
+    f.body.geometry.dispose(); f.tex.dispose();
     f.mats.forEach((m) => m.dispose());
   }
 
@@ -129,11 +170,14 @@ export function createButterflies(scene: THREE.Scene) {
         if (f.phase === 'draw') { f.age += dt; continue; }
         f.age += dt;
         const t = f.age;
-        const wake = smooth(t / 0.7);                 // Farbe füllt die Flügel, Tinte wird dünn
-        (f.wr.mesh.material as THREE.MeshBasicMaterial).opacity = (f.wl.mesh.material as THREE.MeshBasicMaterial).opacity = 0.92 * wake * (1 - smooth((t - (FLY_T - FADE_T)) / FADE_T));
-        (f.mats[0] as THREE.MeshBasicMaterial).opacity = 1 - smooth((t - (FLY_T - FADE_T)) / FADE_T);
+        const wake = smooth(t / 0.8);                 // Skizze verblasst, der echte Schmetterling erscheint
+        const fade = 1 - smooth((t - (FLY_T - FADE_T)) / FADE_T);
+        (f.wr.mesh.material as THREE.MeshBasicMaterial).opacity = (f.wl.mesh.material as THREE.MeshBasicMaterial).opacity = wake * fade;
+        (f.mats[3] as THREE.MeshBasicMaterial).opacity = wake * fade;
+        (f.mats[0] as THREE.MeshBasicMaterial).opacity = (1 - wake) * 0.9;
+        f.group.scale.setScalar(THREE.MathUtils.lerp(SKETCH_SCALE, REAL_SCALE, wake));
         // Flügelschlag (Scharnier an der Körpermitte), beim Erwachen noch langsam
-        const flap = 0.25 + 0.95 * Math.abs(Math.sin(t * (6 + 9 * wake) + f.seed));
+        const flap = 0.2 + 0.85 * Math.abs(Math.sin(t * (6 + 12 * wake) + f.seed));
         f.wr.hinge.rotation.y = -flap * wake; f.wl.hinge.rotation.y = flap * wake;
         // Position & Blickrichtung
         const p0 = f.group.position;
