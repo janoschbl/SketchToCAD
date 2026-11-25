@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Dialog, DropdownMenu } from 'radix-ui';
-import { ArrowLeft, ArrowRight, Copy, CopySuccess, Menu, Play, Xmark } from 'reicon-react';
+import { ArrowLeft, ArrowRight, Menu, Play, Xmark } from 'reicon-react';
 import { DEMO } from '../lib/demo';
 
 const CONTACT_MAIL = 'janoschbl@proton.me';
@@ -79,23 +79,6 @@ const ADDRESS = (
 );
 const Mail = () => <a href={`mailto:${CONTACT_MAIL}`}>{CONTACT_MAIL}</a>;
 
-/** E-Mail-Adresse zum Lesen und Kopieren – statt beim Klick ungefragt ein Mailprogramm zu öffnen */
-function MailCopy() {
-  const [done, setDone] = useState(false);
-  const copy = () => {
-    navigator.clipboard?.writeText(CONTACT_MAIL).then(() => { setDone(true); setTimeout(() => setDone(false), 1600); }).catch(() => {});
-  };
-  return (
-    <div className="vmail">
-      <span className="vmail-addr">{CONTACT_MAIL}</span>
-      <button type="button" className="vmail-copy" onClick={copy} aria-label={done ? 'Copied' : 'Copy e-mail address'}>
-        <span className="vmail-ico" data-on={!done}><Copy size={18} aria-hidden /></span>
-        <span className="vmail-ico" data-on={done}><CopySuccess size={18} aria-hidden /></span>
-      </button>
-    </div>
-  );
-}
-
 function CTA({ act, children }: { act: () => void; children: ReactNode }) {
   return <button type="button" className="vcta" onClick={act}>{children}<ArrowRight size={18} aria-hidden /></button>;
 }
@@ -158,12 +141,12 @@ const TEAM = [
 /** About und Kontakt in einem: wer wir sind, was die Idee ist, Stand, und dass wir Jobs suchen */
 function AboutCard({ go }: { go: Go }) {
   return (
-    <div className="vcard-split">
+    <>
       <figure className="vteam">
         <img src="/endslide/team1.jpg" alt="Martin, Mariia and Janosch with laptops at the hackathon table" width={1000} height={750} />
         <figcaption>Hackathon weekend at STARTPLATZ</figcaption>
       </figure>
-      <div>
+      <div className="vabout-text" tabIndex={0}>
         <Dialog.Title asChild><h2>Hi, we’re Martin, Mariia and Janosch.</h2></Dialog.Title>
         <Dialog.Description>We built SketchTo3D over a weekend at a hackathon at <a href="https://www.startplatz.de/" target="_blank" rel="noopener">STARTPLATZ</a>. A weekend turned out to be slightly too short, so we just kept building.</Dialog.Description>
         <p>The idea: you sketch something and get a finished 3D model as USD, ready for film and post-production. Right now it is good for planning and brainstorming. Later it should work end to end.</p>
@@ -172,13 +155,12 @@ function AboutCard({ go }: { go: Go }) {
           <CTA act={() => go(DEMO ? 'museum' : 'tool')}>{DEMO ? 'Watch the demo' : 'Create a 3D model'}</CTA>
         </div>
         <h3>Contact</h3>
-        <p>Mariia and I are looking for jobs in software development. If you need something built in this direction, or just want to talk about it, write us.</p>
-        <MailCopy />
+        <p>Mariia and I are looking for jobs in software development.</p>
         <ul className="vlinks">
           {TEAM.map((m) => <li key={m.url}><a href={m.url} target="_blank" rel="noopener">{m.name}<span className="vlinks-tag">LinkedIn</span></a></li>)}
         </ul>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -309,7 +291,7 @@ function Overlay({ store, go, close, onJump }: { store: Store; go: Go; close: ()
       <Dialog.Root open={card !== null} onOpenChange={(o) => { if (!o) close(); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="vveil" />
-          <Dialog.Content className={card === 'museum' ? 'vdialog vdialog-museum' : card === 'well' || card === 'about' ? 'vdialog vcard vcard-wide' : 'vdialog vcard'} aria-describedby={undefined}
+          <Dialog.Content className={card === 'museum' ? 'vdialog vdialog-museum' : `vdialog vcard${card === 'about' ? ' vcard-about' : card === 'well' ? ' vcard-wide' : ''}`} aria-describedby={undefined}
             // Fokus auf die Karte selbst statt auf den Schließen-Knopf (sonst leuchtet beim Öffnen gleich der Fokusring)
             onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).focus({ preventScroll: true }); }}>
             {card === 'well' && <WellCard go={go} />}
