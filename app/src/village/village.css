@@ -247,6 +247,9 @@ body.hovering #scene { cursor: pointer; }
   border-radius: calc(var(--preview-radius) + var(--preview-inset) + 1px); }
 :is(.vcard-split, .vcard-about) { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 28px; align-items: start; }
 :is(.vteam, .vdemo) { border-radius: var(--preview-radius); }
+.vcard-wide .vdemo { max-width: min(var(--well-preview-width, 100%), calc(84dvh - var(--preview-inset) - var(--preview-inset) - 2px - var(--well-preview-caption, 0px))); }
+.vdemo:has(.vdemo-art) { --well-preview-caption: 42px; }
+@media (max-width: 760px) { .vcard-wide { --well-preview-width: 320px; } }
 .vcard-wide .vdemo-art::before { border-radius: max(0px, calc(var(--preview-radius) - 10px)); }
 @media (max-width: 620px) {
   .vcard:is(.vcard-wide, .vcard-about) { --preview-inset: 16px; --preview-radius: 14px; }
