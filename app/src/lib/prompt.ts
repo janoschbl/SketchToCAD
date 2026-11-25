@@ -1,3 +1,4 @@
+import { DEMO, DEMO_MSG } from './demo';
 /**
  * Prompt-Editor-Backend (prompt-editor/, FastAPI): Modelle per Text ändern.
  * Der Browser spricht nur mit diesem Origin; Vite leitet `/prompt-api` an den Python-Server weiter
@@ -27,6 +28,7 @@ export const FALLBACK_CONFIG: PromptConfig = {
 export class PromptError extends Error {}
 
 async function call(path: string, init?: RequestInit): Promise<any> {
+  if (DEMO) throw new PromptError(DEMO_MSG);
   let r: Response;
   try {
     r = await fetch(BASE + path, init);
@@ -183,6 +185,7 @@ export async function convertModel(f: File): Promise<ArrayBuffer> {
   if (f.size > MAX_MODEL_BYTES) throw new PromptError('The file is larger than 200 MB.');
   const fd = new FormData();
   fd.append('datei', f, f.name);
+  if (DEMO) throw new PromptError(DEMO_MSG);
   let r: Response;
   try { r = await fetch(BASE + '/api/convert', { method: 'POST', body: fd }); } catch { throw new PromptError('Prompt server unreachable. Start it with “bun run prompt-server”.'); }
   if (!r.ok) {

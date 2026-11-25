@@ -1,3 +1,4 @@
+import { DEMO, DemoError } from './demo';
 /**
  * Magic Pen: Skizze → MeshPad (GPU-Server, per Vite-Proxy `/mesh`) → Dreiecks-Mesh.
  * MeshPad streut stark; deshalb werden mehrere Seeds erzeugt und das sauberste Mesh gewählt.
@@ -36,6 +37,7 @@ export async function generateMesh(png: Blob, n: number, onProgress: (done: numb
   for (let i = 0; i < n; i++) {
     onProgress(i);
     try {
+      if (DEMO) throw new DemoError();
       const fd = new FormData();
       fd.append('image', png, 'sketch.png');
       fd.append('seed', String(i + 1));
@@ -47,6 +49,7 @@ export async function generateMesh(png: Blob, n: number, onProgress: (done: numb
     } catch (e) {
       if (signal?.aborted) throw e;
       lastErr = e;
+      if (e instanceof DemoError) throw e;
       if (!best && i === 0 && e instanceof TypeError) break; // Netzwerkfehler: gar nicht erst weiter versuchen
     }
   }

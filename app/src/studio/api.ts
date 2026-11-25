@@ -1,3 +1,4 @@
+import { DEMO, DEMO_MSG } from '@/lib/demo';
 // KI-Studio: Client für lab/trellis_lab/server_local.py (Heim-PC, Vite-Proxy /trellis-api).
 export const API = '/trellis-api';
 
@@ -22,6 +23,7 @@ export type AiPart = { id: string; name: string; cx: number; cy: number; share: 
 export const url = (p: string) => `${API}/${p}`;
 
 async function call<T>(path: string, fd?: FormData, signal?: AbortSignal): Promise<T> {
+  if (DEMO) throw new Error(DEMO_MSG);
   let r: Response;
   try {
     r = await fetch(`${API}${path}`, fd ? { method: 'POST', body: fd, signal } : { signal });
@@ -73,6 +75,7 @@ export const api = {
     call<Project>('/region', form({ id, op, mask: o.mask ?? null, parts: (o.parts ?? []).join(','), color: o.color, text: o.text, colors: o.colors ? JSON.stringify(o.colors) : undefined })),
   /** ChatGPT (Prompt-Server, Schlüssel bleibt dort): Wunsch in Worten → Bearbeitungsschritte */
   aiPlan: async (body: { prompt: string; subject: string; parts: AiPart[]; selected: string[]; image: string; labeled: string; history: { role: string; text: string }[] }) => {
+    if (DEMO) throw new Error(DEMO_MSG);
     let r: Response;
     try {
       r = await fetch('/prompt-api/api/studio/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

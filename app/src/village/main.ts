@@ -1,5 +1,4 @@
-import { showSlide, showEndSlide } from './slide';
-const PUBLIC = !!(window as unknown as { ST_PUBLIC?: boolean }).ST_PUBLIC;
+import { showEndSlide } from './slide';
 import * as THREE from 'three';
 import './village.css';
 import * as P from './props';
@@ -15,34 +14,7 @@ import { createPost } from './post';
 import { makeSticker, stickOnPrism } from './stickers';
 import { createUI, type ClaimVariant } from './ui';
 import { createDrown } from './drown';
-
-// ---------------------------------------------------------------- Neustart im selben Dokument
-// „Zurück zur Folie“ lädt die Seite nicht neu (das würde den Vollbildmodus beenden): Diese Instanz räumt sich selbst ab
-// (Listener, Overlays, WebGL) und das Modul wird neu ausgewertet → Intro startet wieder von vorn, Vollbild bleibt.
-const trackedListeners: [EventTarget, string, EventListenerOrEventListenerObject, boolean | AddEventListenerOptions | undefined][] = [];
-const origAddEventListener = EventTarget.prototype.addEventListener;
-EventTarget.prototype.addEventListener = function (this: EventTarget, type: string, fn: EventListenerOrEventListenerObject, opts?: boolean | AddEventListenerOptions) {
-  const target = this ?? window; // bloßes addEventListener(...) läuft ohne this
-  trackedListeners.push([target, type, fn, opts]);
-  return origAddEventListener.call(target, type, fn, opts);
-} as typeof EventTarget.prototype.addEventListener;
-const bodyBefore = new Set<Element>(Array.from(document.body.children));
-let disposed = false;
-function restartVillage() {
-  if (disposed) return;
-  disposed = true;
-  EventTarget.prototype.addEventListener = origAddEventListener;
-  for (const [t, type, fn, opts] of trackedListeners) t.removeEventListener(type, fn, opts);
-  for (const el of Array.from(document.body.children)) if (!bodyBefore.has(el)) el.remove();
-  document.body.classList.remove('drowning');
-  try { sfx.ctx?.close(); } catch { /* egal */ }
-  renderer.dispose();
-  renderer.forceContextLoss();
-  canvas.replaceWith(canvas.cloneNode(false)); // frischer Canvas ohne alten WebGL-Kontext
-  const u = new URL(location.href); u.searchParams.delete('slide');
-  history.replaceState(null, '', u);
-  import(/* @vite-ignore */ `${import.meta.url.split('?')[0]}?r=${Date.now()}`);
-}
+import { createButterflies } from './butterflies';
 
 // ---------------------------------------------------------------- Renderer & Szene
 
@@ -235,6 +207,7 @@ scene.add(grass);
 const fireflies = createFireflies(mask);
 scene.add(fireflies);
 const leaves = new Leaves();
+const flutter = createButterflies(scene);
 scene.add(leaves.mesh);
 
 const sparks = new Sparks();
@@ -412,7 +385,7 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = e.clientX - last.x, dy = e.clientY - last.y;
   last.set(e.clientX, e.clientY);
   press.moved = Math.max(press.moved, Math.hypot(e.clientX - press.x, e.clientY - press.y));
-  if (press.moved > 60) ui.questDone('look');
+  if (press.moved > 60) ui.noteDone('look');
   // Umsehen per Ziehen: Welt folgt dem Cursor
   fp.yawT += dx * 0.0042;
   fp.pitchT = THREE.MathUtils.clamp(fp.pitchT + dy * 0.0036, -1.15, 1.15);
@@ -428,9 +401,16 @@ canvas.addEventListener('pointerup', (e) => {
   setHover(null);
   sfx.pop(1.1);
   if (o.id === 'well') { wellSeen = true; ui.openWell(); }
-  else { visited.add(o.id); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Workshop'); }
+  else { visited.add(o.id); openHouse(o); }
 });
 canvas.addEventListener('pointercancel', endDrag);
+
+/** Museum → Demo-Video, Rathaus → Teamfolie, alle anderen Häuser → Werkstatt */
+function openHouse(o: SketchObj) {
+  if (o.label === 'Museum') ui.openMuseum();
+  else if (o.label === 'Town Hall') ui.openTeam();
+  else ui.openTool(o.label ?? 'Workshop');
+}
 
 // Touch-Joystick (Handy/iPad): links unten zum Laufen, Ziehen auf der restlichen Fläche zum Umsehen
 const joy = { x: 0, y: 0, el: null as HTMLDivElement | null };
@@ -461,6 +441,7 @@ function showJoystick() {
   };
   base.addEventListener('pointerdown', (e) => {
     gesture();
+    base.classList.add('used');
     id = e.pointerId;
     base.setPointerCapture(id);
     base.classList.add('active');
@@ -504,7 +485,7 @@ function moveFp(dx: number, dz: number) {
   else if (walkable(fp.pos.x, nz)) fp.pos.z = nz;
 }
 
-let time = 0, holdIntro = !PUBLIC && new URLSearchParams(location.search).get('slide') !== '0', burst = false, twinkled = false, wummed = false, flew1 = false, dissolved = false, flew2 = false, waveR = 0;
+let time = 0, burst = false, twinkled = false, wummed = false, flew1 = false, dissolved = false, flew2 = false, waveR = 0;
 let baseFov = 38;
 let prCap = 1.75;
 function resize() {
@@ -533,27 +514,45 @@ const focus = V3(0, CAM0.y, 0), look = V3(0, 0, 0), fly1From = V3(0, 0, 0), fly1
 let dist = CAM0.dist, pitch = CAM0.pitch, yaw = 0.75, flash = 0;
 let manual = false;
 
-// Automatische Qualität: schwache Geräte (z. B. Laptop-GPU) schalten bei dauerhaft niedriger Bildrate erst Kantenglättung + Unschärfe, dann Bloom + Auflösung ab
-let quality = 0;
+// Qualitätsstufen (0 voll … 3 sparsam). Start sparsam: schwache Laptop-GPUs (integrierte Grafik) kommen mit 55 000 Grashalmbüscheln
+// (~500 000 Dreiecke), 4×-Kantenglättung und Bloom nicht klar. Bei dauerhaft niedriger Bildrate geht es automatisch eine Stufe weiter runter.
+const GRASS_FRAC = [1, 0.5, 0.25, 0.12];
+const grassMesh = grass as THREE.InstancedMesh;
+const grassFull = grassMesh.count;
+let quality = 0, shadowTick = 0, renderTick = 0;
+function applyQuality(q: number) {
+  quality = q;
+  post.setQuality(q);
+  grassMesh.count = Math.round(grassFull * GRASS_FRAC[q]);
+  renderer.shadowMap.autoUpdate = q === 0;   // ab Stufe 1: Schatten nur jedes dritte Bild neu berechnen
+  sun.castShadow = q < 3;
+  prCap = q >= 3 ? 0.85 : q >= 2 ? 1 : 1.5;
+  resize();
+}
+{
+  // Integrierte/Software-GPU erkennen → gleich auf Stufe 2 starten
+  let weak = false;
+  try {
+    const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+    weak = /Radeon Graphics|Intel|UHD|Iris|Mali|Adreno|llvmpipe|SwiftShader|Renoir|Vega/i.test(name);
+  } catch { /* egal */ }
+  applyQuality(weak ? 2 : 1);
+}
 const frameTimes: number[] = [];
 function watchPerformance(dt: number) {
   if (document.visibilityState !== 'visible' || paused || dt >= 1 / 20 - 1e-4) { frameTimes.length = 0; return; }   // Tab im Hintergrund / Aussetzer nicht mitzählen
   frameTimes.push(dt);
-  if (frameTimes.length < 150) return;
+  if (frameTimes.length < 60) return;
   const avg = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
   frameTimes.length = 0;
-  if (avg > 1 / 44 && quality < 2) {
-    quality++;
-    post.setQuality(quality);
-    if (quality >= 2) { prCap = 1; resize(); }
-  }
+  if (avg > 1 / 42 && quality < 3) applyQuality(quality + 1);
 }
 function frame(fixedDt?: number) {
-  if (disposed) return;
   clock.update();
   const dt = fixedDt ?? Math.min(clock.getDelta(), 1 / 20);
-  if (fixedDt === undefined && !holdIntro) watchPerformance(dt);
-  if (!holdIntro) time += dt;
+  if (fixedDt === undefined) watchPerformance(dt);
+  time += dt;
   const t = time;
 
   // ---------- Pinsel & Brunnen
@@ -717,7 +716,7 @@ function frame(fixedDt?: number) {
         const n = Math.max(1, Math.hypot(kx, kz));
         const fx = -Math.sin(fp.yaw), fz = -Math.cos(fp.yaw), rx = Math.cos(fp.yaw), rz = -Math.sin(fp.yaw);
         moveFp(((fx * kz + rx * kx) / n) * speed, ((fz * kz + rz * kx) / n) * speed);
-        if (Math.hypot(fp.pos.x - PLAZA_POS.x, fp.pos.z - PLAZA_POS.z) > 2.5) ui.questDone('walk');
+        if (Math.hypot(fp.pos.x - PLAZA_POS.x, fp.pos.z - PLAZA_POS.z) > 2.5) { walkDone = true; ui.noteDone('walk'); }
         fp.bob += speed * 2.6;
         if (deepWater(fp.pos.x, fp.pos.z)) { keys.clear(); setHover(null); drown.start(); }
       }
@@ -749,8 +748,9 @@ function frame(fixedDt?: number) {
   const CLAIM_T0 = T_TAP - 0.1, CLAIM_T1 = CLAIM_T0 + (T_FLY1 + 0.5 - CLAIM_T0) / 2; // Claim nur halb so lange sichtbar
   const claimOn = t >= CLAIM_T0 && t < CLAIM_T1 && dash.t < 0;
   if (claimOn !== claimShown) { claimShown = claimOn; ui.introClaim(claimOn); }
-  if (t >= T_FP + 0.4 && dash.t < 0) { ui.showHero(); ui.showQuest(); }
+  if (t >= T_FP + 0.4 && dash.t < 0) { ui.showGuide(); }
   updateHint(t);
+  updateWalkSpot(t);
   updateMarks();
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(look);
@@ -799,6 +799,7 @@ function frame(fixedDt?: number) {
   }
   fireLight.intensity = fireObj.state === 'done' ? 9 + Math.sin(t * 11) * 1.5 + Math.sin(t * 23) : 0;
   leaves.update(dt, t, ground);
+  flutter.update(dt, t, camera.position, free && dash.t < 0 && !drown.active && !paused);
   sparks.update(dt);
   trail.update(dt);
   seaU.uTime.value = t;
@@ -807,7 +808,9 @@ function frame(fixedDt?: number) {
   (fireflies.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
   postU.uTime.value = t;
 
-  if (!paused) post.composer.render(dt);
+  if (quality >= 1 && shadowTick++ % 3 === 0) renderer.shadowMap.needsUpdate = true;
+  // ab Stufe 2: nur jedes zweite Bild zeichnen (stabile 30 statt ruckelnder 20)
+  if (!paused && (quality < 2 || renderTick++ % 2 === 0)) post.composer.render(dt);
   if (fixedDt === undefined && !manual) requestAnimationFrame(() => frame());
 }
 // ---------------------------------------------------------------- Oberfläche, Sprung & Klicks
@@ -883,7 +886,7 @@ const ui = createUI({
   claim: (['titel', 'hand', 'unten'].includes(claimParam ?? '') ? claimParam : 'titel') as ClaimVariant,
   onJump: jumpToWell,
   onReplayIntro: () => location.reload(),
-  onVideoDone: () => openEnd(),
+  onTeam: openEnd,
   onWell: () => { wellSeen = true; },
   onOpenChange: (open) => {
     keys.clear(); setHover(null);
@@ -892,25 +895,13 @@ const ui = createUI({
   },
 });
 ui.setMode('intro');
-// Präsentationsfolie zuerst; die Intro-Animation wartet dahinter und startet, sobald sie ausblendet
-if (holdIntro) showSlide().then(() => { holdIntro = false; });
-// Schlussfolie (Team, Fotos, QR-Code): Leertaste im Dorf oder Ende des Museumsvideos; Pfeil links/Esc zurück
+// Teamfolie (Foto-Collage): steckt im Rathaus – Klick aufs Haus öffnet sie, Pfeil links/Esc schließt sie
 let endOpen = false;
 function openEnd() {
-  if (endOpen || PUBLIC) return;
+  if (endOpen) return;
   endOpen = true; keys.clear(); paused = true;
   showEndSlide().then(() => { endOpen = false; paused = false; });
 }
-addEventListener('keydown', (e) => {
-  if (e.key !== ' ' || e.repeat || holdIntro || !uiVillage || endOpen || ui.isOpen()) return;
-  e.preventDefault();
-  openEnd();
-});
-// Pfeil links zurück zur Folie (solange das Intro läuft): Szene neu aufbauen, Folie zeigen, Intro startet danach ganz von vorn – ohne Neuladen, Vollbild bleibt
-addEventListener('keydown', (e) => {
-  if (e.key !== 'ArrowLeft' || holdIntro || uiVillage || e.repeat) return;
-  restartVillage();
-});
 
 // Häuser und Brunnen anklickbar
 const ray = new THREE.Raycaster();
@@ -948,7 +939,7 @@ function setHover(o: SketchObj | null, x = 0, y = 0) {
     hovered = o;
     document.body.classList.toggle('hovering', !!o);
   }
-  ui.showHover(o ? (o.id === 'well' ? 'Well · How it works' : o.label === 'Museum' ? 'Museum · Watch the project' : `${o.label} · Workshop`) : null, x, y);
+  ui.showHover(o ? (o.id === 'well' ? 'Well · How it works' : o.label === 'Museum' ? 'Museum · Watch the demo' : o.label === 'Town Hall' ? 'Town Hall · Meet the team' : `${o.label} · Workshop`) : null, x, y);
 }
 // Hinweis über dem Brunnen nach der Landung, bis man ihn einmal geöffnet hat
 let wellSeen = false;
@@ -956,11 +947,11 @@ const hint = document.createElement('div');
 hint.className = 'vhint';
 // Steht vor dem Brunnen auf dem Platz, Pfeil zeigt nach oben auf den Brunnen
 hint.innerHTML = `<div class="vhint-in"><svg viewBox="0 0 46 54" aria-hidden="true"><path d="M23 51 C 28 40, 18 30, 24 18 M24 17 C 25 13, 25 9, 23 4 M23 4 L 15 12 M23 4 L 31 11"/></svg>
-  <span>Click the well!</span></div>`;
+  <span>Click the well</span></div>`;
 document.body.appendChild(hint);
 const hintPos = V3(0, 0, 0);
 function updateHint(t: number) {
-  const active = free && !wellSeen && dash.t < 0 && !ui.isOpen() && !drown.active;
+  const active = free && walkDone && !wellSeen && dash.t < 0 && !ui.isOpen() && !drown.active;
   let show = false;
   if (active) {
     hintPos.set(0, 0.05, 1.35).project(camera);
@@ -975,8 +966,46 @@ function updateHint(t: number) {
   hint.classList.toggle('on', show);
 }
 
-// Quest-Markierungen über den Häusern (wie Quest-Geber im Spiel); verschwinden nach dem Besuch
-const houseObjs = objs.filter((o) => o.id.startsWith('house'));
+// Bodenmarkierung „hier laufen“: pulsierender Ring vor dem Startpunkt, verschwindet, sobald man hineinläuft (oder weit genug gelaufen ist)
+let walkDone = false;
+const WALK_SPOT = V3(1.9, 0.07, 1.0);
+const walkRing = new THREE.Group();
+{
+  const mat = (o: number) => new THREE.MeshBasicMaterial({ color: '#fff4dc', transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.72, 48), mat(0.95));
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.62, 48), mat(0.22));
+  const pulse = new THREE.Mesh(new THREE.RingGeometry(0.72, 0.8, 48), mat(0.5));
+  pulse.name = 'pulse';
+  walkRing.add(ring, disc, pulse);
+  walkRing.rotation.x = -Math.PI / 2;
+  walkRing.position.copy(WALK_SPOT);
+  walkRing.visible = false;
+  scene.add(walkRing);
+}
+const walkLabel = document.createElement('div');
+walkLabel.className = 'vwalk';
+walkLabel.textContent = touchUI ? 'Walk here with the joystick' : 'Walk here · W A S D';
+document.body.appendChild(walkLabel);
+const walkPos = V3(0, 0, 0);
+function updateWalkSpot(t: number) {
+  if (!walkDone && free && Math.hypot(fp.pos.x - WALK_SPOT.x, fp.pos.z - WALK_SPOT.z) < 1.0) { walkDone = true; ui.noteDone('walk'); }
+  if (walkDone) document.body.classList.add('walked');
+  const show = free && !walkDone && dash.t < 0 && !ui.isOpen() && !drown.active;
+  walkRing.visible = show;
+  if (show) {
+    const k = (t * 0.9) % 1;
+    const p = walkRing.getObjectByName('pulse') as THREE.Mesh;
+    p.scale.setScalar(1 + k * 0.7);
+    (p.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - k);
+    walkPos.set(WALK_SPOT.x, 0.7, WALK_SPOT.z).project(camera);
+    const on = walkPos.z < 1 && Math.abs(walkPos.x) < 0.92 && Math.abs(walkPos.y) < 0.9;
+    walkLabel.classList.toggle('on', on);
+    if (on) walkLabel.style.transform = `translate(${((walkPos.x + 1) / 2) * innerWidth}px, ${((1 - walkPos.y) / 2) * innerHeight}px)`;
+  } else walkLabel.classList.remove('on');
+}
+
+// Ein einziger Hinweis über dem Museum (Demo-Video); die anderen Häuser erkennt man am Hover
+const houseObjs = objs.filter((o) => o.id.startsWith('house') && o.label === 'Museum');
 const visited = new Set<string>();
 const marks = houseObjs.map((o) => {
   const m = document.createElement('button');
@@ -985,15 +1014,15 @@ const marks = houseObjs.map((o) => {
   m.setAttribute('aria-label', `${o.label}: open workshop`);
   const isMuseum = o.label === 'Museum';
   if (isMuseum) m.classList.add('museum');
-  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>${isMuseum ? '▶' : '!'}</b><em>${isMuseum ? 'Museum · Watch the project' : o.label}</em></span>`;
-  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); if (o.label === 'Museum') ui.openMuseum(); else ui.openTool(o.label ?? 'Workshop'); });
+  m.innerHTML = `<span class="vmark-in"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 C 30 3, 37 10, 37 20 C 37 30, 30 37, 20 37 C 9 37, 3 30, 3.5 19 C 4 10, 11 3.5, 21 4"/></svg><b>▶</b><em>Watch the demo</em></span>`;
+  m.addEventListener('click', (e) => { e.stopPropagation(); visited.add(o.id); sfx.pop(1.1); openHouse(o); });
   document.body.appendChild(m);
   return { o, m, occluded: false };
 });
 const markPos = V3(0, 0, 0), toMark = V3(0, 0, 0);
 let markFrame = 0;
 function updateMarks() {
-  const active = free && dash.t < 0 && !ui.isOpen() && !drown.active;
+  const active = free && wellSeen && dash.t < 0 && !ui.isOpen() && !drown.active;
   const occl = active && markFrame++ % 12 === 0;
   const solid = occl ? objs.filter((o) => o.state === 'done' && o.group.visible).map((o) => o.group) : [];
   for (const k of marks) {
@@ -1037,7 +1066,7 @@ requestAnimationFrame(() => frame());
 // fürs Debuggen in der Konsole
 Object.assign(window, {
   village: {
-    objs, gen, mask, fp, jumpToWell, skipIntro, drown, camera, scene,
+    objs, gen, mask, fp, jumpToWell, skipIntro, drown, camera, scene, renderer, post,
     get time() { return time; },
     marks: { T_BURST, T_WUMM, T_FLY1, T_SIGN, T_DISSOLVE, T_FLY2, T_FP },
     /** Simulation manuell vorspulen (für Screenshots in gedrosselten Tabs). */

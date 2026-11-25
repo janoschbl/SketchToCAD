@@ -8,7 +8,8 @@
     "preview": "vite preview --host",
     "sync": "node server/sync-server.ts",
     "prompt-server": "cd ../prompt-editor && PY=.venv/bin/python; [ -x $PY ] || PY=python3; $PY -m uvicorn app.server:app --host 127.0.0.1 --port ${PROMPT_PORT:-8000}",
-    "dev:all": "bun run sync & bun run prompt-server & bun run dev"
+    "dev:all": "bun run sync & bun run prompt-server & bun run dev",
+    "build:site": "VITE_DEMO=1 VITE_TOOL_URL=/canvas.html vite build && mv dist/index.html dist/canvas.html && cp dist/village.html dist/index.html"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
