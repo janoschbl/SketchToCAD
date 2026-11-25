@@ -35,6 +35,12 @@ function warp(t: number) {
 /** Flügelschlag in Grad (positiv = nach oben). Oben +75° (fast Flügelschluss), unten −30°. */
 function flap(s: number) { return 22.5 + 52.5 * Math.cos(2 * Math.PI * s); }
 
+/** Nur für die Vorschau: Das Modell schwebt um seine Mitte. */
+export function poseFlightHover(hover: T.Group, t: number) {
+  hover.position.set(0.12 * Math.sin(t * 0.6), 0.06 * Math.sin(t * 1.3), 0.1 * Math.sin(t * 0.6) * Math.cos(t * 0.6));
+  hover.rotation.y = 0.35 * Math.sin(t * 0.3);
+}
+
 export function buildFlightRig(meshes: T.Mesh[], duration = 0.5): FlightRig | null {
   const geos: { g: T.BufferGeometry; m: T.Material | T.Material[] }[] = [];
   for (const m of meshes) {

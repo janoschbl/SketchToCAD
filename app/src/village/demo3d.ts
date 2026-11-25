@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { buildFlightRig, poseFlightHover } from '../studio/flight';
 
 export type Stage = 'sketch' | 'image' | 'model';
 
 const IMAGE_SIZE = 2.34;
-const DRAW_END = 1.95, IMAGE_END = 3.35, MODEL_START = 4.35, TAKEOFF = 5.05, FLIGHT_END = 10.55, LOOP = 11.25;
+const DRAW_END = 1.95, IMAGE_END = 3.35, MODEL_START = 4.35, TAKEOFF = 5.05, FLIGHT_END = 10.55, LOOP = 10.85;
 const smooth = (from: number, to: number, t: number) => THREE.MathUtils.smoothstep(t, from, to);
 const clamp = THREE.MathUtils.clamp;
 
@@ -62,7 +63,7 @@ function drawSketch() {
   };
 }
 
-// Fore- and hindwing share a surface so bending never opens a gap along their seam.
+// Keep each wing in one piece so the Studio rig can blend the fore and hind bones.
 function wingGeometry(side: number) {
   const g = new THREE.PlaneGeometry(1, 1, 28, 36);
   const pos = g.attributes.position, uv = g.attributes.uv;
@@ -73,63 +74,19 @@ function wingGeometry(side: number) {
     // Exclude the body and antennae painted on the source image.
     const root = 0.058 + 0.34 * smooth(0.29, 0.97, y);
     const x = side * THREE.MathUtils.lerp(root, half, span);
-    pos.setXYZ(i, x, y, 0);
+    pos.setXYZ(i, x, y, 0.02 * Math.sin(Math.PI * span));
     uv.setXY(i, x / IMAGE_SIZE + 0.5, y / IMAGE_SIZE + 0.5);
   }
+  g.computeVertexNormals();
   return g;
 }
 
 function makeButterfly(texture: THREE.Texture) {
   const group = new THREE.Group();
-  const motion = { value: new THREE.Vector3() };
   const wingMaterial = new THREE.MeshStandardMaterial({
     map: texture, side: THREE.DoubleSide, alphaTest: 0.44, alphaToCoverage: true, roughness: 0.53, metalness: 0.04,
   });
-  wingMaterial.onBeforeCompile = (shader) => {
-    shader.uniforms.uWingMotion = motion;
-    shader.vertexShader = `
-      uniform vec3 uWingMotion;
-
-      vec3 flexWing(vec3 p) {
-        float span = clamp((abs(p.x) - 0.06) / 1.11, 0.0, 1.0);
-        float rear = 1.0 - smoothstep(-0.25, 0.22, p.y);
-        float phase = uWingMotion.x - 0.80 * span - 0.40 * rear;
-        float raised = max(0.0, sin(phase));
-        float cup = raised * raised * raised;
-        float load = uWingMotion.y;
-
-        float bend = load * (-0.33 * cos(phase) + 0.24 * cup);
-        float twist = span * load * (0.52 * sin(phase - 0.92) - 0.20 * cup);
-        float axis = 0.18 - 0.34 * span;
-        float chord = clamp((p.y + 0.90) / 1.88, 0.0, 1.0);
-        float camber = 4.0 * chord * (1.0 - chord) * span
-          * (0.045 * uWingMotion.z + load * (0.16 * cup - 0.09 * cos(phase)));
-
-        p.x *= 1.0 - 0.42 * bend * bend * span;
-        p.z += (p.y - axis) * sin(twist) + span * span * bend + camber;
-        p.y = axis + (p.y - axis) * cos(twist);
-        return p;
-      }
-    ` + shader.vertexShader.replace('#include <beginnormal_vertex>', `
-      #include <beginnormal_vertex>
-      vec3 flexed = flexWing(position);
-      vec3 along = flexWing(position + vec3(0.004, 0.0, 0.0)) - flexed;
-      vec3 across = flexWing(position + vec3(0.0, 0.004, 0.0)) - flexed;
-      objectNormal = normalize(cross(along, across));
-    `).replace('#include <begin_vertex>', 'vec3 transformed = flexed;');
-    // Morpho wing scales lose their blue sheen underneath, without changing the silhouette.
-    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
-      #include <map_fragment>
-      if (!gl_FrontFacing) diffuseColor.rgb = mix(diffuseColor.rgb * vec3(1.0, .8, .59),
-        vec3(.32, .18, .072) * dot(diffuseColor.rgb, vec3(.3, .45, .65)), .43);
-    `);
-  };
-  const wings = [-1, 1].map((side) => {
-    const wing = new THREE.Mesh(wingGeometry(side), wingMaterial);
-    wing.frustumCulled = false; // The vertex shader changes the wing's bounds.
-    group.add(wing);
-    return { wing, side };
-  });
+  for (const side of [-1, 1]) group.add(new THREE.Mesh(wingGeometry(side), wingMaterial));
 
   const bodyMaterial = new THREE.MeshStandardMaterial({ color: '#674932', roughness: 0.81 });
   const abdomen = [new THREE.Vector2(0.004, -0.62), new THREE.Vector2(0.019, -0.55)];
@@ -161,13 +118,41 @@ function makeButterfly(texture: THREE.Texture) {
     group.add(new THREE.Mesh(new THREE.TubeGeometry(antenna, 16, 0.005, 5, false), bodyMaterial));
     oval(tip.x, tip.y, tip.z, 0.012, 0.026, 0.009, eyeMaterial);
   }
-  return { group, wings, motion: motion.value };
+  // The Studio rig expects +X dorsal, +Y head, and Z as the wingspan.
+  group.rotation.y = Math.PI / 2;
+  const meshes = group.children.filter((object): object is THREE.Mesh => object instanceof THREE.Mesh);
+  const rig = buildFlightRig(meshes);
+  disposeMeshes(group);
+  if (!rig) throw new Error('The butterfly has no mesh to animate');
+
+  const mixer = new THREE.AnimationMixer(rig.root);
+  const flap = mixer.clipAction(rig.clip).play();
+  const hover = new THREE.Group();
+  const preview = new THREE.Group();
+  hover.add(rig.root);
+  preview.add(hover);
+  preview.position.y = 0.075;
+
+  const picturePose = rig.root.quaternion.clone().multiply(group.quaternion).invert();
+  const flightPose = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(
+    new THREE.Vector3(-0.75, 0.55, 0.65), new THREE.Vector3(), new THREE.Vector3(0, 1, 0),
+  )).invert();
+  return { preview, hover, mixer, flap, picturePose, flightPose };
 }
 
-const flightPath = new THREE.CatmullRomCurve3([
-  [0, 0, 0], [-0.07, 0.08, 0.02], [-0.09, 0.24, -0.10], [0.20, 0.46, -0.23],
-  [0.67, 0.56, -0.40], [1.15, 0.48, -0.68], [1.85, 0.65, -0.95], [3.24, 1.26, -1.28],
-].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+function disposeMeshes(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>(), skeletons = new Set<THREE.Skeleton>();
+  root.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      geometries.add(object.geometry);
+      for (const material of [object.material].flat()) materials.add(material);
+    }
+    if (object instanceof THREE.SkinnedMesh) skeletons.add(object.skeleton);
+  });
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
+  skeletons.forEach((skeleton) => skeleton.dispose());
+}
 
 export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: (stage: Stage) => void, onReady: () => void, reduce: boolean) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -222,19 +207,12 @@ export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: 
   let stage: Stage = 'sketch', disposed = false, playing = !reduce;
   let t = 0, lastFrame = 0, raf = 0;
 
-  const heading = new THREE.Vector3(), ahead = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
-  const rotation = new THREE.Matrix4(), target = new THREE.Quaternion(), bank = new THREE.Quaternion();
-  const restPose = new THREE.Quaternion(), axisY = new THREE.Vector3(0, 1, 0), axisX = new THREE.Vector3(1, 0, 0);
-  const tilt = new THREE.Euler();
-
   function render() {
     if (!photo || !butterfly || disposed) return;
     const sweep = THREE.MathUtils.lerp(-0.07, 1.07, smooth(DRAW_END, IMAGE_END, t));
-    const relief = reduce ? 1 : smooth(MODEL_START + 0.17, TAKEOFF + 0.10, t);
+    const relief = reduce ? 1 : smooth(MODEL_START + 0.17, TAKEOFF + 0.18, t);
     const flight = Math.max(0, t - TAKEOFF);
-    const progress = clamp(flight / (FLIGHT_END - TAKEOFF), 0, 1);
-    const departing = smooth(0.30, 2.25, flight);
-    const { group, wings, motion } = butterfly;
+    const { preview, hover, mixer, flap, picturePose, flightPose } = butterfly;
 
     drawing.mesh.visible = !reduce && t > 0 && t < IMAGE_END;
     drawing.sweep.value = sweep;
@@ -244,56 +222,22 @@ export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: 
     photo.visibility.value = 1 - smooth(MODEL_START + 0.04, MODEL_START + 0.33, t);
     photo.mesh.renderOrder = 1;
 
-    group.visible = (reduce || t >= MODEL_START) && t < FLIGHT_END;
+    preview.visible = (reduce || t >= MODEL_START) && t < FLIGHT_END;
     shadow.visible = !reduce && t >= DRAW_END && t < FLIGHT_END;
-    if (group.visible) {
-      const pathProgress = progress - 0.05 * Math.sin(progress * Math.PI);
-      flightPath.getPoint(pathProgress, group.position);
-      const glide = smooth(1.52, 1.90, flight) - smooth(2.21, 2.62, flight)
-        + smooth(3.51, 3.89, flight) - smooth(4.32, 4.74, flight);
-      const liftOff = smooth(0, 0.47, flight);
-      const effort = liftOff * (1 - 0.92 * glide);
-      const phase = 2 * Math.PI * (2.45 * flight + 0.07 * Math.sin(2.7 * flight));
-      const beat = Math.sin(phase);
-      const fold = reduce ? 0.29 : THREE.MathUtils.lerp(0.31 * Math.sin(relief * 2.55), 0.18 + 0.09 * glide, liftOff);
-      const stroke = fold + effort * (0.62 * beat + 0.15 * Math.max(0, beat) ** 2);
-      motion.set(phase, effort, relief);
-
-      tilt.set(-0.19 * relief, -0.31 * relief, 0.13 * relief);
-      restPose.setFromEuler(tilt);
-      group.quaternion.copy(restPose);
-      let turn = 0;
-      if (flight > 0) {
-        flightPath.getTangent(pathProgress, heading);
-        flightPath.getTangent(Math.min(1, pathProgress + 0.032), ahead);
-        up.set(0, 0.38, 1);
-        right.crossVectors(heading, up).normalize();
-        up.crossVectors(right, heading);
-        target.setFromRotationMatrix(rotation.makeBasis(right, heading, up));
-        turn = clamp(ahead.cross(heading).dot(up) * 1.4, -0.35, 0.35);
-        target.multiply(bank.setFromAxisAngle(axisY, turn));
-        target.multiply(bank.setFromAxisAngle(axisX, effort * 0.10 * Math.sin(phase - 0.55)));
-        group.quaternion.slerp(target, smooth(0.12, 1.16, flight));
-        group.position.y += effort * 0.044 * Math.cos(phase - 0.45);
-        group.position.z += effort * 0.018 * Math.sin(phase - 0.9);
-      }
-      for (const { wing, side } of wings) {
-        wing.rotation.y = -side * stroke + 0.26 * turn * effort * beat;
-        wing.rotation.z = side * (0.025 * relief + 0.084 * effort * Math.sin(phase - 0.68));
-      }
-      group.position.y += 0.075;
-      const scale = (1 - liftOff * 0.055 - departing * 0.27) * (1 - smooth(0.62, 1, progress) * 0.23);
-      group.scale.setScalar(scale);
+    if (preview.visible) {
+      preview.quaternion.slerpQuaternions(picturePose, flightPose, relief);
+      preview.scale.setScalar(1 - 0.08 * relief);
+      flap.setEffectiveWeight(reduce ? 0.28 : smooth(0, 0.32, flight));
+      mixer.setTime(flight);
+      poseFlightHover(hover, flight);
     }
 
     if (shadow.visible) {
-      const { x, y } = group.position;
-      shadow.position.x = x * 0.82 + 0.08;
-      shadow.position.y = y * 0.77 - 0.07 - departing * 0.29;
-      shadow.scale.setScalar(1 - departing * 0.19);
-      shadowMaterial.uniforms.strength.value = 0.16 * smooth(DRAW_END, IMAGE_END, t) * (1 - 0.72 * departing) * (1 - smooth(0.7, 1, progress));
+      shadow.position.set(0.08, -0.21 * relief, -0.78);
+      shadowMaterial.uniforms.strength.value = 0.16 * smooth(DRAW_END, IMAGE_END, t) * (1 - 0.38 * relief);
     }
 
+    canvas.style.opacity = String(1 - smooth(FLIGHT_END - 0.45, FLIGHT_END, t));
     const next = reduce || t >= MODEL_START ? 'model' : t >= DRAW_END ? 'image' : 'sketch';
     if (stage !== next) { stage = next; onStage(stage); }
     renderer.render(scene, camera);
@@ -331,7 +275,7 @@ export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: 
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     photo = sheet(texture, false);
     butterfly = makeButterfly(texture);
-    scene.add(butterfly.group);
+    scene.add(butterfly.preview);
     resize();
     onReady();
     syncPlayback();
@@ -345,15 +289,8 @@ export function mountDemo(canvas: HTMLCanvasElement, imageUrl: string, onStage: 
       observer.disconnect();
       document.removeEventListener('visibilitychange', syncPlayback);
       cancelAnimationFrame(raf);
-      const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          geometries.add(object.geometry);
-          materials.add(object.material as THREE.Material);
-        }
-      });
-      geometries.forEach((geometry) => geometry.dispose());
-      materials.forEach((material) => material.dispose());
+      butterfly?.mixer.stopAllAction();
+      disposeMeshes(scene);
       sketch.texture.dispose();
       specimen?.dispose();
       renderer.dispose();

@@ -4,7 +4,7 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { url, type Project } from './api';
-import { buildElytraRig, buildFlightRig, exportFlightGlb, type FlightRig } from './flight';
+import { buildElytraRig, buildFlightRig, exportFlightGlb, poseFlightHover, type FlightRig } from './flight';
 
 export type Mode3d = 'orbit' | 'select' | 'erase';
 
@@ -54,10 +54,7 @@ export class View3d {
       const dt = this.clock.getDelta();
       if (this.flight && !this.exporting) {
         this.flight.mixer.update(dt * this.flight.speed);
-        // Nur Vorschau (nicht im Export): sanftes Schweben auf einer liegenden Acht
-        const t = this.clock.elapsedTime;
-        this.flight.hover.position.set(0.12 * Math.sin(t * 0.6), 0.06 * Math.sin(t * 1.3), 0.1 * Math.sin(t * 0.6) * Math.cos(t * 0.6));
-        this.flight.hover.rotation.y = 0.35 * Math.sin(t * 0.3);
+        poseFlightHover(this.flight.hover, this.clock.elapsedTime);
       }
       this.controls.update();
       this.renderer.render(this.scene, this.cam);
