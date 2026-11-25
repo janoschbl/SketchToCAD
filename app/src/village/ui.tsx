@@ -138,25 +138,20 @@ const TEAM = [
   { name: 'Janosch Dickhage', url: 'https://www.linkedin.com/in/janosch-dickhage-038380451/' },
 ];
 
-/** About und Kontakt in einem: wer wir sind, was die Idee ist, Stand, und dass wir Jobs suchen */
-function AboutCard({ go }: { go: Go }) {
+function AboutCard() {
   return (
     <>
       <figure className="vteam">
-        <img src="/endslide/team1.jpg" alt="Martin, Mariia and Janosch with laptops at the hackathon table" width={1000} height={750} />
-        <figcaption>Hackathon weekend at STARTPLATZ</figcaption>
+        <img src="/endslide/team-preview.webp" alt="Martin, Mariia and Janosch with laptops at the hackathon table" width={800} height={600} />
+        <figcaption className="vteam-tags" aria-hidden="true">
+          <span>Martin</span><span>Mariia</span><span>Janosch</span>
+        </figcaption>
       </figure>
-      <div className="vabout-text" tabIndex={0}>
-        <Dialog.Title asChild><h2>Hi, we’re Martin, Mariia and Janosch.</h2></Dialog.Title>
-        <Dialog.Description>We built SketchTo3D over a weekend at a hackathon at <a href="https://www.startplatz.de/" target="_blank" rel="noopener">STARTPLATZ</a>. A weekend turned out to be slightly too short, so we just kept building.</Dialog.Description>
-        <p>The idea: you sketch something and get a finished 3D model as USD, ready for film and post-production. Right now it is good for planning and brainstorming. Later it should work end to end.</p>
-        <p>It is not finished yet. The demo shows where it is at.</p>
-        <div className="vcard-actions vcard-actions-top">
-          <CTA act={() => go(DEMO ? 'museum' : 'tool')}>{DEMO ? 'Watch the demo' : 'Create a 3D model'}</CTA>
-        </div>
-        <h3>Contact</h3>
-        <p>Mariia and I are looking for jobs in software development.</p>
-        <ul className="vlinks">
+      <div className="vabout-text">
+        <Dialog.Title asChild><h2>Meet the team</h2></Dialog.Title>
+        <Dialog.Description>We built SketchTo3D at a <a href="https://www.startplatz.de/" target="_blank" rel="noopener">STARTPLATZ</a> hackathon. It’s a prototype that turns sketches into 3D assets for film.</Dialog.Description>
+        <p>Mariia and Janosch are open to software development roles.</p>
+        <ul className="vlinks" aria-label="Team on LinkedIn">
           {TEAM.map((m) => <li key={m.url}><a href={m.url} target="_blank" rel="noopener">{m.name}<span className="vlinks-tag">LinkedIn</span></a></li>)}
         </ul>
       </div>
@@ -295,7 +290,7 @@ function Overlay({ store, go, close, onJump }: { store: Store; go: Go; close: ()
             // Fokus auf die Karte selbst statt auf den Schließen-Knopf (sonst leuchtet beim Öffnen gleich der Fokusring)
             onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).focus({ preventScroll: true }); }}>
             {card === 'well' && <WellCard go={go} />}
-            {card === 'about' && <AboutCard go={go} />}
+            {card === 'about' && <AboutCard />}
             {card === 'imprint' && <ImprintCard />}
             {card === 'privacy' && <PrivacyCard />}
             {card === 'museum' && <Museum />}

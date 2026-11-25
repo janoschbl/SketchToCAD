@@ -211,41 +211,50 @@ body.hovering #scene { cursor: pointer; }
   .vback:hover .vback-label { opacity: 1; transition-delay: 60ms; }
 }
 
-/* About: quadratische Vorschau mit eigener Textspalte */
-.vcard-about { grid-template-rows: minmax(0, 1fr); height: min(80dvh, 430px); overflow: hidden; }
-.vabout-text { align-self: stretch; min-height: 0; padding: 0 8px 8px 0; overflow-y: auto; overscroll-behavior: contain; }
-.vabout-text h2 { padding-inline-end: 16px; }
-.vabout-text:focus-visible { outline: 2px solid #ffb38a; outline-offset: -2px; }
-.vteam { width: min(100%, 344px, calc(80dvh - var(--preview-inset) - var(--preview-inset) - 2px)); aspect-ratio: 1;
+/* About: quadratisches Teamfoto, daneben die Kurzvorstellung */
+.vcard.vcard-about { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: 22px;
+  width: min(710px, calc(100% - 32px)); scrollbar-gutter: auto; }
+.vabout-text { font-size: 15px; line-height: 1.4; }
+.vabout-text h2 { font-size: 23px; margin: 0 0 9px; padding-inline-end: 20px; }
+.vabout-text p { margin: 0 0 8px; }
+.vteam { width: min(100%, calc(84dvh - var(--preview-inset) - var(--preview-inset) - 2px)); aspect-ratio: 1;
   margin: 0; position: relative; overflow: hidden; }
-.vteam img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 44% 58%; scale: 1.17; transform-origin: 44% 58%; }
-.vteam figcaption { position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; border-radius: 999px; font: 500 13px/1 var(--round); color: #fff7ea; background: var(--surface); }
+.vteam img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 44% 88%; scale: 1.22; transform-origin: 44% 88%; }
+.vteam-tags { position: absolute; inset: 0; pointer-events: none; }
+.vteam-tags span { position: absolute; top: 23%; translate: -50% -100%; padding: 4px; border-radius: 4px;
+  background: #201910e8; color: #fff7ea; font: 600 clamp(8px, 2.5vw, 11px)/1 ui-monospace, monospace; }
+.vteam-tags span::after { content: ""; position: absolute; top: 100%; left: 50%; translate: -50% 0;
+  border: 4px solid transparent; border-top-color: #201910e8; }
+.vteam-tags span:nth-child(1) { left: 18%; }
+.vteam-tags span:nth-child(2) { left: 50%; }
+.vteam-tags span:nth-child(3) { left: 77%; }
+.vlinks { list-style: none; display: grid; gap: 3px; margin: 10px 0 0; padding: 0; }
+.vlinks li { margin: 0; }
+.vlinks a { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 32px; box-sizing: border-box;
+  padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line);
+  font: 500 14px/1.2 var(--round); color: #fff7ea !important; text-decoration: none; transition: background-color 150ms ease; }
+.vlinks-tag { padding: 3px 6px; border-radius: 999px; font-size: 11px; color: #cfe0ff; background: rgba(79, 109, 255, 0.18); }
+@media (hover: hover) and (pointer: fine) { .vlinks a:hover { background: rgba(255, 247, 234, 0.08); } }
 @media (max-width: 620px) and (orientation: portrait) {
-  .vcard.vcard-about { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px; height: 84dvh; }
-  .vteam { width: min(100%, 320px, 35dvh); justify-self: center; }
-  .vteam img { scale: 1.27; }
+  .vcard.vcard-about { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .vteam { width: min(100%, 232px, 26dvh); justify-self: center; }
   .vcard-about .vcard-x { background: var(--surface); color: #fff7ea; }
 }
-.vlinks { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0 !important; padding: 0 !important; }
-.vlinks li { margin: 0 !important; }
-.vlinks a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 999px; border: 1px solid var(--line);
-  font: 500 14px/1 var(--round); color: #fff7ea !important; text-decoration: none; transition: background-color 150ms ease; }
-.vlinks-tag { padding: 4px 7px; border-radius: 999px; font-size: 11px; color: #cfe0ff; background: rgba(79, 109, 255, 0.18); }
-@media (hover: hover) and (pointer: fine) { .vlinks a:hover { background: rgba(255, 247, 234, 0.08); } }
 
 /* Schlanke Scrollleiste in den Karten statt der grauen Systemleiste; bleibt innerhalb der runden Ecken */
-:is(.vcard:not(.vcard-about), .vabout-text) { scrollbar-width: thin; scrollbar-color: rgba(255, 247, 234, 0.22) transparent; scrollbar-gutter: stable; }
-:is(.vcard, .vabout-text)::-webkit-scrollbar { width: 12px; }
-:is(.vcard, .vabout-text)::-webkit-scrollbar-track { background: transparent; margin: 18px 0; }
-:is(.vcard, .vabout-text)::-webkit-scrollbar-thumb { background: rgba(255, 247, 234, 0.22); border-radius: 999px; border: 4px solid transparent; background-clip: padding-box; }
-:is(.vcard, .vabout-text)::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 247, 234, 0.38); }
-:is(.vcard, .vabout-text)::-webkit-scrollbar-button { display: none; height: 0; }
+.vcard { scrollbar-width: thin; scrollbar-color: rgba(255, 247, 234, 0.22) transparent; scrollbar-gutter: stable; }
+.vcard::-webkit-scrollbar { width: 12px; }
+.vcard::-webkit-scrollbar-track { background: transparent; margin: 18px 0; }
+.vcard::-webkit-scrollbar-thumb { background: rgba(255, 247, 234, 0.22); border-radius: 999px; border: 4px solid transparent; background-clip: padding-box; }
+.vcard::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 247, 234, 0.38); }
+.vcard::-webkit-scrollbar-button { display: none; height: 0; }
 
 /* ---------------------------------------------------------------- Karten mit Vorschau */
 .vcard:is(.vcard-wide, .vcard-about) { --preview-inset: 24px; --preview-radius: 16px;
-  width: min(860px, calc(100% - 32px)); padding: var(--preview-inset);
+  padding: var(--preview-inset);
   border-radius: calc(var(--preview-radius) + var(--preview-inset) + 1px); }
-:is(.vcard-split, .vcard-about) { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 28px; align-items: start; }
+.vcard-wide { width: min(860px, calc(100% - 32px)); }
+.vcard-split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 28px; align-items: start; }
 :is(.vteam, .vdemo) { border-radius: var(--preview-radius); }
 .vcard-wide .vdemo { max-width: min(var(--well-preview-width, 100%), calc(84dvh - var(--preview-inset) - var(--preview-inset) - 2px - var(--well-preview-caption, 0px))); }
 .vdemo:has(.vdemo-art) { --well-preview-caption: 42px; }
